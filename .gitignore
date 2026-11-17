@@ -36,6 +36,10 @@ temp/
 *.srt
 *.json.meta
 
+# Permitir logos e identidade visual
+!assets/
+!assets/**
+
 # Cache do Python e Compilação
 __pycache__/
 *.py[cod]
