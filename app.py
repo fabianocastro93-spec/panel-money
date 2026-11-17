@@ -168,13 +168,18 @@ def run_pipeline_worker(req: ProcessRequest):
                 dubbed_audio_path=dubbed_audio_path
             )
             
-            # Salvar metadados com títulos virais sugeridos
+            # Salvar metadados com títulos virais sugeridos e legenda específica
+            from src.highlight_detector import generate_specific_caption
+            clip_text = " ".join([w["word"] for w in clip_words]) if clip_words else clip.get("title", "")
+            
             suggested = clip.get("suggested_titles") or [
                 clip.get("title", "ESSE DETALHE NO GTA 6 NINGUÉM VIU! 😱"),
                 "A FÍSICA DO GTA 6 VAI SER INSANA! 🔥",
                 "O SEGREDO DA ROCKSTAR NO GTA VI! 🎮"
             ]
-            caption = f"🔥 {clip.get('title', 'NOVIDADES GTA 6!')}\n\n{clip.get('hook', '')}\n\nSiga @castro93c para mais novidades do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming"
+            caption_ig = generate_specific_caption(clip_text, clip.get("title", suggested[0]), platform="instagram")
+            caption_yt = generate_specific_caption(clip_text, clip.get("title", suggested[0]), platform="youtube")
+            
             meta_path = Path(out_path).with_name(out_filename + ".json")
             try:
                 with open(meta_path, "w", encoding="utf-8") as mf:
@@ -182,7 +187,10 @@ def run_pipeline_worker(req: ProcessRequest):
                         "title": clip.get("title", suggested[0]),
                         "suggested_titles": suggested,
                         "hook": clip.get("hook", ""),
-                        "caption": caption
+                        "clip_text": clip_text,
+                        "caption": caption_ig,
+                        "caption_instagram": caption_ig,
+                        "caption_youtube": caption_yt
                     }, mf, ensure_ascii=False, indent=2)
             except Exception as e:
                 print(f"[!] Erro ao salvar metadados: {e}")
@@ -191,7 +199,9 @@ def run_pipeline_worker(req: ProcessRequest):
                 "filename": out_filename,
                 "title": clip.get("title", suggested[0]),
                 "suggested_titles": suggested,
-                "caption": caption,
+                "caption": caption_ig,
+                "caption_instagram": caption_ig,
+                "caption_youtube": caption_yt,
                 "hook": clip.get("hook", ""),
                 "duration": round(clip["end"] - clip["start"], 1),
                 "url": f"/videos/{out_filename}"
@@ -387,6 +397,8 @@ def list_clips():
             suggested_titles = []
             caption = ""
             
+            from src.highlight_detector import generate_specific_caption
+            mdata = {}
             if meta_path.exists():
                 try:
                     with open(meta_path, "r", encoding="utf-8") as mf:
@@ -405,9 +417,18 @@ def list_clips():
                     "A FÍSICA DO GTA 6 VAI SER INSANA! 🔥",
                     "O SEGREDO DA ROCKSTAR NO GTA VI! 🎮"
                 ]
-                caption = f"🔥 {title}\n\nSiga @castro93c para mais novidades do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming"
-                
+
             clean_base = title.replace("#shorts", "").strip()
+            clip_text = mdata.get("clip_text", clean_base)
+            
+            caption_ig = mdata.get("caption_instagram")
+            caption_yt = mdata.get("caption_youtube")
+            
+            if not caption_ig or len(caption_ig) < 70 or "Neste" not in caption_ig:
+                caption_ig = generate_specific_caption(clip_text, title, platform="instagram")
+            if not caption_yt or len(caption_yt) < 70 or "Neste" not in caption_yt:
+                caption_yt = generate_specific_caption(clip_text, title, platform="youtube")
+
             suggested_youtube = [
                 f"{clean_base} #shorts",
                 "A FÍSICA DO GTA 6 VAI REVOLUCIONAR! 🔥 #shorts",
@@ -421,7 +442,9 @@ def list_clips():
                 "title": title,
                 "suggested_titles": suggested_titles,
                 "suggested_titles_youtube": suggested_youtube,
-                "caption": caption,
+                "caption": caption_ig,
+                "caption_instagram": caption_ig,
+                "caption_youtube": caption_yt,
                 "size_mb": size_mb,
                 "created_at": time.strftime("%d/%m/%Y %H:%M", time.localtime(stat.st_mtime)),
                 "url": f"/videos/{f.name}"

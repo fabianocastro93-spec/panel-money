@@ -941,6 +941,14 @@
 
     function selectSuggestedTitle(title) {
       document.getElementById('modal-video-title').value = title;
+      const captionEl = document.getElementById('modal-video-caption');
+      const lines = captionEl.value.split('\n');
+      if (lines.length > 0) {
+        lines[0] = activePlatform === 'youtube' 
+          ? (title.includes('#shorts') ? title : `${title} #shorts`) 
+          : `🔥 ${title.replace(/#shorts/gi, '').trim()}`;
+        captionEl.value = lines.join('\n');
+      }
     }
 
     function openUploadModal(filename, platform) {
@@ -971,7 +979,7 @@
           'A ROCKSTAR PASSOU DOS LIMITES NO GTA 6! 💥 #shorts'
         ];
 
-        captionText = `${cleanBase}\n\nInscreva-se no canal para mais novidades e detalhes do GTA 6!\n\n#shorts #gta6 #gtavi #gta6brasil #rockstargames #games #viral #curiosidades`;
+        captionText = clip.caption_youtube || `${cleanBase} #shorts\n\nNeste corte de GTA 6, veja os detalhes e novidades que estão agitando a comunidade gamer!\n\nVocê concorda ou a expectativa tá alta demais? Comente aí embaixo! 👇\n\n🔔 Inscreva-se no canal para acompanhar todos os segredos e novidades do GTA 6!\n\n#shorts #gta6 #gtavi #gta6brasil #rockstargames #games #viral #curiosidades`;
       } else {
         document.getElementById('modal-title').innerHTML = '<span class="text-pink-500">📸</span> Publicar no Instagram Reels';
         document.getElementById('modal-btn-confirm').className = 'px-5 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-xl text-sm font-semibold transition';
@@ -985,7 +993,7 @@
           'VOCÊ NOTOU ESSE DETALHE NO GTA 6?! 👀'
         ];
 
-        captionText = clip.caption || `🔥 NOVIDADES GTA 6! Você sabia desse detalhe? Comente aí embaixo! 👇\n\nSiga @castro93c para mais novidades do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming`;
+        captionText = clip.caption_instagram || clip.caption || `🔥 ${cleanBase}\n\nNeste trecho de GTA 6, confira esse momento insano e os detalhes impressionantes que a Rockstar preparou!\n\nVocê já sabia desse detalhe? Deixe sua opinião nos comentários! 👇\n\n📲 Siga @castro93c para mais novidades e cortes do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming`;
       }
 
       document.getElementById('modal-video-title').value = mainTitle;

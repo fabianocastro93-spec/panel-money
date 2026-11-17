@@ -71,6 +71,62 @@ Retorne apenas um JSON puro com uma lista de strings:
         f"{short_hook} NO GTA 6! 🎮"
     ]
 
+def generate_specific_caption(clip_text: str, title: str, niche: str = "gta6", platform: str = "instagram") -> str:
+    """
+    Gera uma legenda/descrição completa e ultra-específica com base no que está sendo falado no vídeo,
+    incluindo resumo contextual, gancho de engajamento, chamada para ação e hashtags relevantes.
+    """
+    clean_title = title.replace("#shorts", "").strip()
+    summary = ""
+
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key and clip_text and clip_text.strip():
+        try:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            prompt = f"""
+Crie uma legenda de alto engajamento em português para postar no {platform.upper()} (Shorts/Reels) sobre GTA 6.
+Texto falado no clipe:
+"{clip_text[:400]}"
+
+Requisitos:
+- 1 a 2 frases explicando especificamente o que é revelado ou falado no vídeo de forma intrigante.
+- Uma pergunta provocativa para gerar comentários dos fãs.
+Não inclua título nem hashtags (vou adicionar depois). Apenas o corpo do texto explicativo e pergunta.
+"""
+            res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            if res.text and res.text.strip():
+                summary = res.text.strip()
+        except Exception as e:
+            print(f"[!] Erro ao gerar resumo da legenda com Gemini: {e}")
+
+    if not summary:
+        pt_text = translate_text(clip_text[:250]) if clip_text else ""
+        clean_speech = re.sub(r'[\n\r]+', ' ', pt_text).strip()
+        
+        lower = clean_speech.lower()
+        if any(k in lower for k in ["gráfico", "visual", "lindo", "textura", "motor"]):
+            context = "Neste trecho, os detalhes visuais e a qualidade gráfica do GTA 6 chamam a atenção com um nível de realismo nunca antes visto na franquia."
+        elif any(k in lower for k in ["física", "água", "vento", "cabelo", "animação"]):
+            context = "Veja como a nova física e os detalhes de simulação do GTA VI prometem levar a imersão de Vice City para outro patamar."
+        elif any(k in lower for k in ["polícia", "viatura", "perseguição", "tiro", "procurado"]):
+            context = "Confira a nova inteligência artificial da polícia e as perseguições policiais no mapa de Vice City."
+        elif any(k in lower for k in ["mapa", "vice city", "tamanho", "exploração", "mundo"]):
+            context = "O mapa do GTA 6 promete ser gigantesco! Dê uma olhada na escala e nos segredos escondidos pela cidade."
+        elif clean_speech and len(clean_speech) > 15:
+            context = f'Neste corte: "{clean_speech[:150]}..."'
+        else:
+            context = "A Rockstar Games está preparando o maior lançamento da história dos games com detalhes que vão revolucionar tudo."
+
+        question = "Você concorda com isso ou acha que a expectativa tá alta demais? Deixe sua opinião nos comentários! 👇"
+        summary = f"{context}\n\n{question}"
+
+    if platform == "youtube":
+        return f"{clean_title} #shorts\n\n{summary}\n\n🔔 Inscreva-se no canal para acompanhar todos os segredos, vazamentos e novidades do GTA 6!\n\n#shorts #gta6 #gtavi #gta6brasil #rockstargames #games #viral #curiosidades"
+    else:
+        return f"🔥 {clean_title}\n\n{summary}\n\n📲 Siga @castro93c para mais novidades e cortes do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming"
+
+
 def detect_highlights(transcription_data: dict, max_clips: int = 3, min_sec: int = 25, max_sec: int = 60) -> list:
     """
     Analisa a transcrição com IA para identificar os trechos mais virais
