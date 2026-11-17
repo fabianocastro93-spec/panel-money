@@ -1,0 +1,29 @@
+# Core Video & Audio Processing
+yt-dlp>=2024.08.06
+faster-whisper>=1.0.2
+edge-tts>=6.1.12
+moviepy>=1.0.3,<2.0.0
+opencv-python>=4.9.0.80
+pydub>=0.25.1
+pillow>=10.2.0
+
+# AI & LLM (Detecção de Momentos Virais e Tradução)
+google-genai>=0.1.1
+openai>=1.20.0
+
+# Uploaders (YouTube & Instagram)
+google-api-python-client>=2.120.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+instagrapi>=2.1.2
+
+# CLI e Utilitários
+tqdm>=4.66.2
+colorama>=0.4.6
+pydantic>=2.6.4
+python-dotenv>=1.0.1
+requests>=2.31.0
+
+# Web Dashboard Interface
+fastapi>=0.110.0
+uvicorn>=0.28.0

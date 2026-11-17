@@ -1,0 +1,60 @@
+# ========================================================
+# Cortes AI Studio - .gitignore
+# ========================================================
+
+# Arquivos de Credenciais e Segredos (NUNCA SUBIR)
+.env
+*.env
+instagram_session.json
+client_secrets.json
+credentials.json
+token.pickle
+token.json
+
+# Ambiente Virtual Python
+venv/
+env/
+.venv/
+ENV/
+
+# Arquivos de Vídeo e Áudio Baixados ou Renderizados
+downloads/
+output/
+temp/
+*.mp4
+*.mkv
+*.webm
+*.avi
+*.mov
+*.mp3
+*.wav
+*.aac
+*.jpg
+*.jpeg
+*.png
+*.ass
+*.srt
+*.json.meta
+
+# Cache do Python e Compilação
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs e Arquivos Temporários do Sistema
+*.log
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# IDEs e Editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

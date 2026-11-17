@@ -1,0 +1,29 @@
+{
+  "vice_city_pink": {
+    "font_name": "Arial",
+    "font_size": 66,
+    "primary_color": "&H00FFFFFF",
+    "outline_color": "&H00000000",
+    "outline_width": 5,
+    "shadow_depth": 3,
+    "margin_v": 430
+  },
+  "tiktok_yellow": {
+    "font_name": "Arial",
+    "font_size": 65,
+    "primary_color": "&H0000FFFF",
+    "outline_color": "&H00000000",
+    "outline_width": 4,
+    "shadow_depth": 2,
+    "margin_v": 420
+  },
+  "neon_green": {
+    "font_name": "Arial",
+    "font_size": 65,
+    "primary_color": "&H0000FF66",
+    "outline_color": "&H00000000",
+    "outline_width": 4,
+    "shadow_depth": 2,
+    "margin_v": 420
+  }
+}

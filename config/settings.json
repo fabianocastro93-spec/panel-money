@@ -1,0 +1,44 @@
+{
+  "general": {
+    "output_dir": "output/shorts",
+    "downloads_dir": "downloads",
+    "target_aspect_ratio": [9, 16],
+    "target_resolution": [1080, 1920],
+    "default_target_language": "pt",
+    "min_clip_duration_seconds": 25,
+    "max_clip_duration_seconds": 65,
+    "niche": "gta6"
+  },
+  "transcription": {
+    "model_size": "base",
+    "device": "auto",
+    "compute_type": "int8"
+  },
+  "highlight_detection": {
+    "llm_provider": "gemini",
+    "gemini_model": "gemini-2.5-flash",
+    "max_clips_per_video": 4
+  },
+  "dubbing": {
+    "enabled_by_default": false,
+    "tts_engine": "edge-tts",
+    "edge_tts_voice": "pt-BR-AntonioNeural",
+    "alternative_female_voice": "pt-BR-FranciscaNeural",
+    "ducking_volume": 0.15
+  },
+  "subtitles": {
+    "burn_subtitles": true,
+    "style": "vice_city_pink",
+    "font_size": 55,
+    "font_color": "yellow",
+    "stroke_color": "black",
+    "stroke_width": 4,
+    "highlight_current_word": true,
+    "highlight_color": "#FF007F"
+  },
+  "upload": {
+    "youtube_privacy_status": "private",
+    "instagram_caption_template": "🔥 NOVIDADES GTA 6! Você sabia desse detalhe? Comente aí embaixo! 👇\n\nSiga @seu_perfil para mais novidades do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming",
+    "youtube_tags": ["gta 6", "gta vi", "gta 6 trailer", "gta 6 gameplay", "gta 6 brasil", "rockstar games", "shorts", "viral", "games"]
+  }
+}

@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cortes AI Studio - Gerador Automático de Shorts e Reels</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            darkBg: '#090D16',
+            darkCard: '#111827',
+            darkBorder: '#1F2937'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090D16; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4B5563; }
+    
+    .aspect-9-16 {
+      aspect-ratio: 9 / 16;
+    }
+  </style>
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- Header -->
+  <header class="border-b border-darkBorder bg-darkCard/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-pink-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <span class="text-xl">✂️</span>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            Cortes AI Studio
+          </h1>
+          <p class="text-xs text-slate-400">Shorts, Reels, Legendas Whisper & Dublagem (GTA 6 Ready)</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center gap-2 bg-darkBg/60 p-1 rounded-xl border border-darkBorder">
+        <button onclick="switchTab('create')" id="tab-btn-create" class="px-4 py-2 text-sm font-medium rounded-lg transition-all bg-brand-600 text-white shadow">
+          ✂️ Criar Cortes
+        </button>
+        <button onclick="switchTab('gallery')" id="tab-btn-gallery" class="px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white">
+          📱 Galeria (<span id="clips-count">0</span>)
+        </button>
+        <button onclick="switchTab('system')" id="tab-btn-system" class="px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white">
+          🔑 APIs & Configuração
+        </button>
+      </nav>
+
+      <!-- Engine Status Badge -->
+      <div id="status-pill" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="status-pill-text">Motor Pronto</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto p-6 flex-1 w-full">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: CRIAR CORTES (COM PASSOS NUMERADOS) -->
+    <!-- ========================================== -->
+    <section id="tab-create" class="space-y-6">
+      
+      <div class="bg-darkCard rounded-2xl border border-darkBorder p-6 shadow-xl space-y-8">
+        
+        <!-- ================= PASSO 1 ================= -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-3">
+            <span class="w-8 h-8 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-sm shadow">
+              1
+            </span>
+            <div>
+              <h2 class="text-base font-bold text-white uppercase tracking-wider">
+                PASSO 1: Fonte do Vídeo (YouTube, TikTok ou Arquivo Local)
+              </h2>
+              <p class="text-xs text-slate-400">Cole a URL do vídeo de GTA 6 ou o caminho completo de um arquivo .mp4 no seu PC</p>
+            </div>
+          </div>
+
+          <div class="relative pl-11">
+            <input 
+              type="text" 
+              id="input-source" 
+              placeholder="Ex: https://www.youtube.com/watch?v=... ou C:\Users\fabia\Desktop\gta6_trailer.mp4" 
+              class="w-full bg-darkBg border border-darkBorder rounded-xl px-4 py-3.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all pr-12 text-sm"
+            >
+            <span class="absolute right-4 top-3.5 text-slate-500 text-lg">🔗</span>
+          </div>
+        </div>
+
+        <hr class="border-darkBorder">
+
+        <!-- ================= PASSO 2 ================= -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-3">
+            <span class="w-8 h-8 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-sm shadow">
+              2
+            </span>
+            <div>
+              <h2 class="text-base font-bold text-white uppercase tracking-wider">
+                PASSO 2: Personalização, Dublagem e Estilo
+              </h2>
+              <p class="text-xs text-slate-400">Configure dublagem inteligente para vídeos em inglês e escolha o visual das legendas</p>
+            </div>
+          </div>
+
+          <div class="pl-11 grid grid-cols-1 md:grid-cols-5 gap-3">
+            
+            <!-- Dubbing Toggle -->
+            <div class="bg-darkBg p-3.5 rounded-xl border border-darkBorder flex items-center justify-between">
+              <div>
+                <span class="text-xs font-semibold text-slate-200 block">Dublagem PT</span>
+                <span class="text-[10px] text-slate-500">Voz neural em português</span>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="check-dubbing" class="sr-only peer">
+                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600"></div>
+              </label>
+            </div>
+
+            <!-- Legendas em PT-BR Toggle -->
+            <div class="bg-darkBg p-3.5 rounded-xl border border-darkBorder flex items-center justify-between">
+              <div>
+                <span class="text-xs font-semibold text-slate-200 block">Legendas em PT</span>
+                <span class="text-[10px] text-emerald-400 font-medium">Traduzir para português</span>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="check-translate-subs" checked class="sr-only peer">
+                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+              </label>
+            </div>
+
+            <!-- Voice Selection -->
+            <div class="bg-darkBg p-3.5 rounded-xl border border-darkBorder space-y-1">
+              <label class="text-xs font-semibold text-slate-200 block">Voz da Dublagem</label>
+              <select id="select-voice" class="w-full bg-darkCard border border-darkBorder rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500">
+                <option value="pt-BR-AntonioNeural">Antônio (Masculino)</option>
+                <option value="pt-BR-FranciscaNeural">Francisca (Feminino)</option>
+              </select>
+            </div>
+
+            <!-- Subtitle Style -->
+            <div class="bg-darkBg p-3.5 rounded-xl border border-darkBorder space-y-1">
+              <label class="text-xs font-semibold text-slate-200 block">Estilo das Legendas</label>
+              <select id="select-sub-style" class="w-full bg-darkCard border border-darkBorder rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500">
+                <option value="vice_city_pink">🌴 Vice City Neon (GTA 6)</option>
+                <option value="tiktok_yellow" selected>Amarelo TikTok</option>
+                <option value="mrbeast_white">Branco MrBeast</option>
+                <option value="neon_green">Verde Neon</option>
+              </select>
+            </div>
+
+            <!-- Max Clips Quantity -->
+            <div class="bg-darkBg p-3.5 rounded-xl border border-darkBorder space-y-1">
+              <label class="text-xs font-semibold text-slate-200 block">Qtd. de Cortes</label>
+              <select id="select-max-clips" class="w-full bg-darkCard border border-darkBorder rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500">
+                <option value="1">1 Melhor Trecho</option>
+                <option value="2">2 Trechos</option>
+                <option value="3" selected>3 Trechos (Ideal)</option>
+                <option value="5">5 Trechos</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <hr class="border-darkBorder">
+
+        <!-- ================= PASSO 3 ================= -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-3">
+            <span class="w-8 h-8 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-sm shadow">
+              3
+            </span>
+            <div>
+              <h2 class="text-base font-bold text-white uppercase tracking-wider">
+                PASSO 3: Automação de Postagem (Opcional)
+              </h2>
+              <p class="text-xs text-slate-400">Você pode marcar para postar direto ou revisar na Galeria antes de postar</p>
+            </div>
+          </div>
+
+          <div class="pl-11 flex flex-wrap items-center gap-6 text-sm text-slate-300">
+            <label class="flex items-center gap-2.5 cursor-pointer hover:text-white transition bg-darkBg px-4 py-2.5 rounded-xl border border-darkBorder">
+              <input type="checkbox" id="check-auto-yt" class="w-4 h-4 rounded bg-darkCard border-darkBorder text-brand-600 focus:ring-0">
+              <span class="flex items-center gap-1.5 font-medium">🔴 Publicar no YouTube Shorts</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer hover:text-white transition bg-darkBg px-4 py-2.5 rounded-xl border border-darkBorder">
+              <input type="checkbox" id="check-auto-ig" class="w-4 h-4 rounded bg-darkCard border-darkBorder text-brand-600 focus:ring-0">
+              <span class="flex items-center gap-1.5 font-medium">📸 Publicar no Instagram Reels</span>
+            </label>
+            <span class="text-xs text-slate-500 italic">(Dica: Se deixar desmarcado, os vídeos ficam salvos na Galeria para você postar quando quiser)</span>
+          </div>
+        </div>
+
+        <hr class="border-darkBorder">
+
+        <!-- ================= PASSO 4 ================= -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-3">
+            <span class="w-8 h-8 rounded-lg bg-gradient-to-r from-emerald-500 to-brand-600 text-white font-bold flex items-center justify-center text-sm shadow">
+              4
+            </span>
+            <div>
+              <h2 class="text-base font-bold text-white uppercase tracking-wider">
+                PASSO 4: Iniciar Produção Automática
+              </h2>
+              <p class="text-xs text-slate-400">Clique abaixo para disparar o download, transcrição, IA de ganchos virais e render 9:16</p>
+            </div>
+          </div>
+
+          <div class="pl-11 pt-2">
+            <button 
+              id="btn-start" 
+              onclick="startProcessing()"
+              class="w-full md:w-auto px-10 py-4 bg-gradient-to-r from-brand-600 via-indigo-600 to-pink-600 hover:from-brand-500 hover:to-pink-500 text-white font-bold rounded-xl shadow-xl shadow-brand-500/25 flex items-center justify-center gap-3 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed text-base"
+            >
+              <span class="text-xl">🚀</span>
+              <span>INICIAR PROCESSAMENTO DOS CORTES</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Live Job Progress & Stepper Card -->
+      <div id="progress-card" class="bg-darkCard rounded-2xl border border-darkBorder p-6 shadow-xl space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-semibold text-white flex items-center gap-2">
+              <span class="animate-spin" id="spinner-icon">⚙️</span>
+              <span id="job-title-status">Processando Vídeo de GTA 6...</span>
+            </h3>
+            <p id="job-message" class="text-xs text-slate-400 mt-1">Aguardando início do pipeline...</p>
+          </div>
+          <span id="job-percent-badge" class="px-3 py-1 bg-brand-500/10 text-brand-400 font-mono text-sm font-semibold rounded-lg border border-brand-500/20">
+            0%
+          </span>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="w-full bg-darkBg rounded-full h-3 border border-darkBorder overflow-hidden">
+          <div id="progress-bar-fill" class="bg-gradient-to-r from-brand-600 via-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500 w-0"></div>
+        </div>
+
+        <!-- 5-Step Pipeline Indicator -->
+        <div class="grid grid-cols-5 gap-2 text-center text-xs pt-2">
+          <div id="step-1" class="p-2.5 rounded-lg bg-darkBg border border-darkBorder text-slate-500 transition-all">
+            <div class="font-bold">Passo 1/5</div>
+            <div>Download</div>
+          </div>
+          <div id="step-2" class="p-2.5 rounded-lg bg-darkBg border border-darkBorder text-slate-500 transition-all">
+            <div class="font-bold">Passo 2/5</div>
+            <div>Whisper</div>
+          </div>
+          <div id="step-3" class="p-2.5 rounded-lg bg-darkBg border border-darkBorder text-slate-500 transition-all">
+            <div class="font-bold">Passo 3/5</div>
+            <div>Ganchos IA</div>
+          </div>
+          <div id="step-4" class="p-2.5 rounded-lg bg-darkBg border border-darkBorder text-slate-500 transition-all">
+            <div class="font-bold">Passo 4/5</div>
+            <div>Dublagem PT</div>
+          </div>
+          <div id="step-5" class="p-2.5 rounded-lg bg-darkBg border border-darkBorder text-slate-500 transition-all">
+            <div class="font-bold">Passo 5/5</div>
+            <div>Render 9:16</div>
+          </div>
+        </div>
+
+        <!-- Live Terminal Logs -->
+        <div class="space-y-2">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Terminal de Execução em Tempo Real</span>
+          <div id="terminal-logs" class="bg-darkBg p-4 rounded-xl border border-darkBorder font-mono text-xs text-slate-300 h-44 overflow-y-auto space-y-1">
+            <p class="text-slate-600">Aguardando comandos...</p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: GALERIA DE CORTES (PLAYER 9:16) -->
+    <!-- ========================================== -->
+    <section id="tab-gallery" class="space-y-6 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-white">📱 Seus Vídeos Curtos de GTA 6 Gerados</h2>
+          <p class="text-sm text-slate-400">Vídeos prontos no formato 9:16 (1080x1920) com legendas para YouTube Shorts e Reels</p>
+        </div>
+        <button onclick="loadClips()" class="px-3.5 py-1.5 text-xs bg-darkBg border border-darkBorder hover:border-slate-500 text-slate-300 rounded-lg transition flex items-center gap-2">
+          <span>🔄</span> Atualizar Galeria
+        </button>
+      </div>
+
+      <!-- Video Grid -->
+      <div id="clips-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Inserido dinamicamente via JS -->
+      </div>
+
+      <!-- Empty State -->
+      <div id="clips-empty" class="text-center py-16 bg-darkCard rounded-2xl border border-darkBorder hidden">
+        <span class="text-4xl block mb-3">🎬</span>
+        <h3 class="text-base font-semibold text-white">Nenhum corte gerado ainda</h3>
+        <p class="text-sm text-slate-400 max-w-md mx-auto mt-1 mb-4">
+          Cole a URL de um trailer ou análise de GTA 6 na aba "Criar Cortes" para gerar seus primeiros shorts verticais!
+        </p>
+        <button onclick="switchTab('create')" class="px-5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition">
+          Criar Primeiro Corte
+        </button>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: CONFIGURAÇÃO DE APIS & REDES SOCIAIS -->
+    <!-- ========================================== -->
+    <section id="tab-system" class="space-y-6 hidden">
+      
+      <!-- Formulário de Chaves Rápidas -->
+      <div class="bg-darkCard rounded-2xl border border-darkBorder p-6 shadow-xl space-y-6">
+        <div>
+          <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+            <span>🔑</span> Configuração de Contas e APIs de Postagem
+          </h2>
+          <p class="text-sm text-slate-400">Salve suas contas aqui para o sistema postar automaticamente no YouTube e Instagram</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Instagram Form -->
+          <div class="bg-darkBg p-5 rounded-xl border border-darkBorder space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">📸</span>
+                <div>
+                  <h3 class="text-sm font-bold text-white">Instagram Reels (Instagrapi)</h3>
+                  <p class="text-xs text-slate-400">Conecte sua conta para postar com 1 clique</p>
+                </div>
+              </div>
+              <span id="ig-status-badge" class="px-2 py-1 rounded text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                ⚪ Não Conectado
+              </span>
+            </div>
+
+            <!-- Tab / Seleção de Modo -->
+            <div class="flex gap-2 text-xs border-b border-darkBorder pb-2">
+              <button type="button" onclick="setIgAuthMode('creds')" id="ig-mode-creds" class="text-brand-400 font-bold border-b-2 border-brand-500 pb-1">
+                🔑 Usuário e Senha
+              </button>
+              <button type="button" onclick="setIgAuthMode('cookie')" id="ig-mode-cookie" class="text-slate-400 font-medium pb-1 hover:text-white">
+                🍪 Já Aberto no Navegador (SessionID)
+              </button>
+            </div>
+
+            <!-- Modo 1: Usuário e Senha -->
+            <div id="ig-box-creds" class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Usuário do Instagram (@)</label>
+                <input type="text" id="cfg-ig-user" placeholder="Ex: seucanaldegta" class="w-full bg-darkCard border border-darkBorder rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-brand-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Senha do Instagram</label>
+                <input type="password" id="cfg-ig-pass" placeholder="••••••••••••" class="w-full bg-darkCard border border-darkBorder rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-brand-500">
+              </div>
+            </div>
+
+            <!-- Modo 2: SessionID -->
+            <div id="ig-box-cookie" class="space-y-3 hidden">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Cookie SessionID</label>
+                <input type="text" id="cfg-ig-sessionid" placeholder="Cole o valor do cookie sessionid aqui..." class="w-full bg-darkCard border border-darkBorder rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono">
+              </div>
+              <div class="bg-darkCard p-2.5 rounded-lg border border-darkBorder text-[11px] text-slate-400 space-y-1">
+                <span class="text-white font-semibold block">Como pegar com o Instagram aberto:</span>
+                <p>1. No seu navegador onde o Instagram está aberto, aperte <kbd class="bg-slate-700 px-1 rounded text-white">F12</kbd>.</p>
+                <p>2. Vá na aba <strong>Aplicativo (Application) &gt; Cookies &gt; instagram.com</strong>.</p>
+                <p>3. Dê dois cliques no valor de <strong>sessionid</strong>, copie e cole aqui!</p>
+              </div>
+            </div>
+
+            <button type="button" id="btn-ig-connect" onclick="connectInstagram()" class="w-full py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-semibold rounded-lg text-xs shadow transition flex items-center justify-center gap-2">
+              <span>📲</span>
+              <span>Testar e Conectar Instagram Agora</span>
+            </button>
+          </div>
+
+          <!-- Gemini AI Form -->
+          <div class="bg-darkBg p-5 rounded-xl border border-darkBorder space-y-4">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">✨</span>
+              <div>
+                <h3 class="text-sm font-bold text-white">Google Gemini API (Ganchos IA)</h3>
+                <p class="text-xs text-slate-400">Encontra os trechos virais com inteligência máxima</p>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Chave de API Gemini</label>
+                <input type="password" id="cfg-gemini-key" placeholder="AIzaSy..." class="w-full bg-darkCard border border-darkBorder rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-brand-500">
+              </div>
+              <p class="text-[11px] text-slate-400">
+                100% gratuita. Obtenha sua chave no <a href="https://aistudio.google.com/" target="_blank" class="text-brand-400 hover:underline font-semibold">Google AI Studio</a>.
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="flex justify-end">
+          <button onclick="saveApiKeys()" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl shadow transition">
+            💾 Salvar Credenciais no Sistema
+          </button>
+        </div>
+      </div>
+
+      <!-- YouTube OAuth Step-by-Step Card -->
+      <div class="bg-darkCard rounded-2xl border border-darkBorder p-6 shadow-xl space-y-4">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">🔴</span>
+          <div>
+            <h3 class="text-base font-bold text-white">Como Funciona a API do YouTube Shorts (Google Cloud)</h3>
+            <p class="text-xs text-slate-400">O YouTube usa autenticação oficial segura OAuth 2.0</p>
+          </div>
+        </div>
+
+        <div class="bg-darkBg p-4 rounded-xl border border-darkBorder text-xs text-slate-300 space-y-2">
+          <ol class="list-decimal list-inside space-y-1.5 text-slate-300">
+            <li>Acesse o <a href="https://console.cloud.google.com/" target="_blank" class="text-brand-400 underline">Google Cloud Console</a> e crie um projeto (ex: <em>Cortes GTA 6</em>).</li>
+            <li>No menu lateral, vá em <strong>APIs e Serviços &gt; Biblioteca</strong> e ative a <strong>YouTube Data API v3</strong>.</li>
+            <li>Em <strong>Credenciais</strong>, clique em <em>Criar Credenciais &gt; ID do Cliente OAuth</em> (Tipo: <em>Aplicativo para Computador</em>).</li>
+            <li>Faça o download do arquivo JSON gerado, renomeie para <code class="text-amber-400 font-mono">client_secrets.json</code> e salve na pasta raiz do projeto.</li>
+            <li>Na primeira postagem para o Shorts, uma janelinha do navegador pedirá para você autorizar o seu canal com 1 clique!</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- System Diagnostic Summary -->
+      <div class="bg-darkCard rounded-2xl border border-darkBorder p-6 shadow-xl space-y-4">
+        <h3 class="text-base font-bold text-white">Diagnóstico do Motor Local</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="system-checks-container">
+          <!-- Preenchido dinamicamente -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Modal de Upload Rápido -->
+  <div id="upload-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-darkCard border border-darkBorder rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold text-white" id="modal-title">Publicar Vídeo</h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Título do Vídeo / Gancho Viral</label>
+          <input type="text" id="modal-video-title" class="w-full bg-darkBg border border-darkBorder rounded-xl p-3 text-slate-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500">
+          
+          <!-- Chips de Títulos Sugeridos -->
+          <div class="mt-2.5 space-y-1.5">
+            <span class="text-[11px] text-brand-400 font-semibold flex items-center gap-1">
+              <span>💡</span> Títulos sugeridos de acordo com o vídeo (clique para escolher):
+            </span>
+            <div id="modal-suggested-titles" class="flex flex-wrap gap-1.5">
+              <!-- Inserido dinamicamente -->
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Descrição / Legenda / Hashtags</label>
+          <textarea id="modal-video-caption" rows="4" class="w-full bg-darkBg border border-darkBorder rounded-xl p-3 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-2">
+        <button onclick="closeModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm">Cancelar</button>
+        <button id="modal-btn-confirm" class="px-5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold transition">
+          Confirmar Envio
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Application Logic -->
+  <script>
+    // Suporte tanto para http://localhost:5000 quanto para abertura direta file:///
+    const API_BASE = (window.location.protocol === 'file:' || window.location.port !== '5000') ? 'http://127.0.0.1:5000' : '';
+    let activePlatform = 'youtube';
+    let selectedFilename = '';
+    let pollingInterval = null;
+
+    function switchTab(tab) {
+      document.getElementById('tab-create').classList.toggle('hidden', tab !== 'create');
+      document.getElementById('tab-gallery').classList.toggle('hidden', tab !== 'gallery');
+      document.getElementById('tab-system').classList.toggle('hidden', tab !== 'system');
+
+      document.getElementById('tab-btn-create').className = tab === 'create' ? 'px-4 py-2 text-sm font-medium rounded-lg transition-all bg-brand-600 text-white shadow' : 'px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white';
+      document.getElementById('tab-btn-gallery').className = tab === 'gallery' ? 'px-4 py-2 text-sm font-medium rounded-lg transition-all bg-brand-600 text-white shadow' : 'px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white';
+      document.getElementById('tab-btn-system').className = tab === 'system' ? 'px-4 py-2 text-sm font-medium rounded-lg transition-all bg-brand-600 text-white shadow' : 'px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white';
+
+      if (tab === 'gallery') loadClips();
+      if (tab === 'system') loadSystemHealth();
+    }
+
+    async function startProcessing() {
+      const source = document.getElementById('input-source').value.trim();
+      if (!source) {
+        alert('Por favor, insira uma URL do YouTube ou o caminho de um arquivo local (.mp4)!');
+        return;
+      }
+
+      const payload = {
+        source: source,
+        enable_dubbing: document.getElementById('check-dubbing').checked,
+        translate_subtitles: document.getElementById('check-translate-subs').checked,
+        voice: document.getElementById('select-voice').value,
+        max_clips: parseInt(document.getElementById('select-max-clips').value),
+        subtitle_style: document.getElementById('select-sub-style').value,
+        auto_youtube: document.getElementById('check-auto-yt').checked,
+        auto_instagram: document.getElementById('check-auto-ig').checked
+      };
+
+      document.getElementById('btn-start').disabled = true;
+      document.getElementById('progress-card').classList.remove('hidden');
+
+      try {
+        const res = await fetch(API_BASE + '/api/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+          alert('Erro: ' + (data.detail || 'Não foi possível iniciar.'));
+          document.getElementById('btn-start').disabled = false;
+          return;
+        }
+
+        startPolling();
+      } catch (err) {
+        alert('Erro ao conectar com o servidor: ' + err);
+        document.getElementById('btn-start').disabled = false;
+      }
+    }
+
+    function startPolling() {
+      if (pollingInterval) clearInterval(pollingInterval);
+      pollingInterval = setInterval(checkJobStatus, 2000);
+      checkJobStatus();
+    }
+
+    async function checkJobStatus() {
+      try {
+        const res = await fetch(API_BASE + '/api/job');
+        const state = await res.json();
+
+        // Atualizar barra e texto
+        document.getElementById('job-message').innerText = state.message;
+        document.getElementById('job-percent-badge').innerText = state.progress + '%';
+        document.getElementById('progress-bar-fill').style.width = state.progress + '%';
+
+        // Atualizar Badge superior
+        const pill = document.getElementById('status-pill');
+        const pillText = document.getElementById('status-pill-text');
+        if (state.status === 'running') {
+          pill.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20';
+          pillText.innerText = 'Processando...';
+        } else if (state.status === 'completed') {
+          pill.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+          pillText.innerText = 'Concluído!';
+        }
+
+        // Atualizar Steps
+        updateStepHighlight(state.stage);
+
+        // Atualizar logs
+        const term = document.getElementById('terminal-logs');
+        if (state.logs && state.logs.length > 0) {
+          term.innerHTML = state.logs.map(l => `<div>${escapeHtml(l)}</div>`).join('');
+          term.scrollTop = term.scrollHeight;
+        }
+
+        if (state.status === 'completed' || state.status === 'error') {
+          clearInterval(pollingInterval);
+          document.getElementById('btn-start').disabled = false;
+          loadClips();
+        }
+      } catch (err) {
+        console.error('Erro no polling:', err);
+      }
+    }
+
+    function updateStepHighlight(stage) {
+      const steps = ['download', 'transcribe', 'detect', 'dub', 'render'];
+      const currentIdx = steps.indexOf(stage);
+
+      for (let i = 0; i < steps.length; i++) {
+        const el = document.getElementById(`step-${i+1}`);
+        if (i <= currentIdx) {
+          el.className = 'p-2.5 rounded-lg bg-brand-600/20 border border-brand-500/40 text-brand-300 font-semibold';
+        } else {
+          el.className = 'p-2.5 rounded-lg bg-darkBg border border-darkBorder text-slate-500';
+        }
+      }
+    }
+
+    async function loadClips() {
+      try {
+        const res = await fetch(API_BASE + '/api/clips');
+        const data = await res.json();
+        const clips = data.clips || [];
+        window.allLoadedClips = clips;
+
+        document.getElementById('clips-count').innerText = clips.length;
+        const grid = document.getElementById('clips-grid');
+        const empty = document.getElementById('clips-empty');
+
+        if (clips.length === 0) {
+          grid.innerHTML = '';
+          empty.classList.remove('hidden');
+          return;
+        }
+
+        empty.classList.add('hidden');
+        grid.innerHTML = clips.map(c => `
+          <div class="bg-darkCard rounded-2xl border border-darkBorder overflow-hidden shadow-xl flex flex-col group hover:border-slate-600 transition">
+            <!-- 9:16 Video Player -->
+            <div class="bg-black flex items-center justify-center relative aspect-9-16 max-h-[480px]">
+              <video 
+                src="${API_BASE}${c.url}" 
+                controls 
+                preload="metadata"
+                class="w-full h-full object-contain"
+              ></video>
+            </div>
+
+            <!-- Card Info -->
+            <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+              <div>
+                <h4 class="text-sm font-bold text-white line-clamp-2" title="${c.title}">${c.title}</h4>
+                <div class="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                  <span>📅 ${c.created_at}</span>
+                  <span>•</span>
+                  <span>💾 ${c.size_mb} MB</span>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="grid grid-cols-2 gap-2 pt-2 border-t border-darkBorder">
+                <a href="${API_BASE}${c.url}" download="${c.filename}" class="px-3 py-2 bg-darkBg hover:bg-slate-800 text-slate-200 rounded-lg text-xs font-medium text-center transition flex items-center justify-center gap-1.5 border border-darkBorder">
+                  <span>📥</span> Baixar
+                </a>
+                <button onclick="openUploadModal('${c.filename}', 'youtube')" class="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5">
+                  <span>🔴</span> Shorts
+                </button>
+                <button onclick="openUploadModal('${c.filename}', 'instagram')" class="col-span-2 px-3 py-2 bg-pink-600/20 hover:bg-pink-600/30 text-pink-400 border border-pink-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5">
+                  <span>📸</span> Publicar no Instagram Reels
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (err) {
+        console.error('Erro ao listar cortes:', err);
+      }
+    }
+
+    async function loadSystemHealth() {
+      try {
+        const res = await fetch(API_BASE + '/api/health');
+        const h = await res.json();
+        const container = document.getElementById('system-checks-container');
+
+        if (h.instagram_username) {
+          document.getElementById('cfg-ig-user').value = h.instagram_username;
+        }
+
+        const igBadge = document.getElementById('ig-status-badge');
+        if (h.instagram_session) {
+          igBadge.className = 'px-2.5 py-1 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5';
+          igBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Conectado (' + (h.instagram_username || 'OK') + ')';
+        } else {
+          igBadge.className = 'px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700';
+          igBadge.innerHTML = '⚪ Não Conectado';
+        }
+
+        const checks = [
+          { name: 'FFmpeg 9.0 (Libass)', ok: h.ffmpeg, desc: 'Recorte vertical 9:16 e queima de legendas' },
+          { name: 'Python ' + h.python, ok: true, desc: 'Ambiente de execução dos scripts' },
+          { name: 'Google Gemini AI', ok: h.gemini_api, desc: h.gemini_api ? 'Ativo (.env configurado)' : 'Modo Heurístico (Insira chave no .env para análise avançada)' },
+          { name: 'YouTube API (OAuth)', ok: h.youtube_configured, desc: h.youtube_configured ? 'client_secrets.json detectado' : 'Coloque o client_secrets.json na raiz para auto-upload' },
+          { name: 'Instagram Reels', ok: h.instagram_configured, desc: h.instagram_configured ? 'Credenciais configuradas' : 'Configure INSTAGRAM_USERNAME no .env para upload' },
+          { name: 'Dublagem Edge-TTS', ok: true, desc: '100% gratuita e funcional sem limites' }
+        ];
+
+        container.innerHTML = checks.map(c => `
+          <div class="bg-darkBg p-4 rounded-xl border border-darkBorder flex items-center justify-between">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="${c.ok ? 'text-emerald-400' : 'text-amber-400'} font-bold">${c.ok ? '✔' : '⚠'}</span>
+                <span class="text-sm font-medium text-white">${c.name}</span>
+              </div>
+              <span class="text-xs text-slate-400 block mt-1">${c.desc}</span>
+            </div>
+            <span class="px-2.5 py-1 rounded text-[10px] font-semibold ${c.ok ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">
+              ${c.ok ? 'ATIVO' : 'OPCIONAL'}
+            </span>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Erro ao verificar saúde:', err);
+      }
+    }
+
+    async function saveApiKeys() {
+      const gemini = document.getElementById('cfg-gemini-key').value;
+      const igUser = document.getElementById('cfg-ig-user').value;
+      const igPass = document.getElementById('cfg-ig-pass').value;
+
+      try {
+        const res = await fetch(API_BASE + '/api/save-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            gemini_key: gemini || null,
+            instagram_user: igUser || null,
+            instagram_pass: igPass || null
+          })
+        });
+        const d = await res.json();
+        alert(d.message || 'Configurações salvas!');
+        loadSystemHealth();
+      } catch (err) {
+        alert('Erro ao salvar credenciais: ' + err);
+      }
+    }
+
+    let currentIgMode = 'creds';
+
+    function setIgAuthMode(mode) {
+      currentIgMode = mode;
+      document.getElementById('ig-box-creds').classList.toggle('hidden', mode !== 'creds');
+      document.getElementById('ig-box-cookie').classList.toggle('hidden', mode !== 'cookie');
+
+      document.getElementById('ig-mode-creds').className = mode === 'creds' 
+        ? 'text-brand-400 font-bold border-b-2 border-brand-500 pb-1' 
+        : 'text-slate-400 font-medium pb-1 hover:text-white';
+
+      document.getElementById('ig-mode-cookie').className = mode === 'cookie' 
+        ? 'text-brand-400 font-bold border-b-2 border-brand-500 pb-1' 
+        : 'text-slate-400 font-medium pb-1 hover:text-white';
+    }
+
+    async function connectInstagram() {
+      const btn = document.getElementById('btn-ig-connect');
+      const user = document.getElementById('cfg-ig-user').value.trim();
+      const pass = document.getElementById('cfg-ig-pass').value.trim();
+      const sessionid = document.getElementById('cfg-ig-sessionid').value.trim();
+
+      if (currentIgMode === 'creds' && (!user || !pass)) {
+        alert('Por favor, informe o Usuário e a Senha do Instagram.');
+        return;
+      }
+      if (currentIgMode === 'cookie' && !sessionid) {
+        alert('Por favor, cole o valor do SessionID do seu navegador.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Autenticando no Instagram...';
+
+      try {
+        const payload = currentIgMode === 'creds' 
+          ? { username: user, password: pass }
+          : { sessionid: sessionid };
+
+        const res = await fetch(API_BASE + '/api/instagram/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          alert('🎉 ' + data.message);
+          loadSystemHealth();
+        } else {
+          alert('Erro ao conectar: ' + (data.detail || 'Falha na autenticação'));
+        }
+      } catch (err) {
+        alert('Erro de conexão com o servidor: ' + err);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '📲 Testar e Conectar Instagram Agora';
+      }
+    }
+
+    function selectSuggestedTitle(title) {
+      document.getElementById('modal-video-title').value = title;
+    }
+
+    function openUploadModal(filename, platform) {
+      selectedFilename = filename;
+      activePlatform = platform;
+      
+      const clips = window.allLoadedClips || [];
+      const clip = clips.find(c => c.filename === filename) || {};
+      
+      const mainTitle = clip.title || filename.replace('.mp4', '');
+      const captionText = clip.caption || '🔥 NOVIDADES GTA 6! Você sabia desse detalhe? Comente aí embaixo! 👇\n\nSiga @castro93c para mais novidades do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming';
+      const suggestions = clip.suggested_titles && clip.suggested_titles.length ? clip.suggested_titles : [mainTitle];
+
+      document.getElementById('modal-title').innerText = platform === 'youtube' ? 'Publicar no YouTube Shorts' : 'Publicar no Instagram Reels';
+      document.getElementById('modal-video-title').value = mainTitle;
+      document.getElementById('modal-video-caption').value = captionText;
+
+      const chipBox = document.getElementById('modal-suggested-titles');
+      chipBox.innerHTML = suggestions.map(t => `
+        <button type="button" onclick="selectSuggestedTitle('${escapeAttr(t)}')" class="px-2.5 py-1 rounded-lg bg-darkBg hover:bg-brand-600/30 text-slate-200 hover:text-brand-300 border border-darkBorder hover:border-brand-500/50 text-xs transition text-left">
+          ${escapeHtml(t)}
+        </button>
+      `).join('');
+
+      document.getElementById('upload-modal').classList.remove('hidden');
+
+      document.getElementById('modal-btn-confirm').onclick = async () => {
+        const title = document.getElementById('modal-video-title').value;
+        const caption = document.getElementById('modal-video-caption').value;
+        
+        document.getElementById('modal-btn-confirm').disabled = true;
+        document.getElementById('modal-btn-confirm').innerText = 'Enviando...';
+
+        try {
+          const res = await fetch(API_BASE + '/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              video_filename: selectedFilename,
+              platform: activePlatform,
+              title: title,
+              caption: caption
+            })
+          });
+          
+          let d = {};
+          const rawText = await res.text();
+          try {
+            d = JSON.parse(rawText);
+          } catch (jsonErr) {
+            d = { detail: rawText || ('Erro HTTP ' + res.status) };
+          }
+
+          if (res.ok) {
+            const linkMsg = d.url ? '\n\nLink: ' + d.url : '';
+            alert('🎉 Sucesso! Publicado no ' + (activePlatform === 'youtube' ? 'YouTube Shorts!' : 'Instagram Reels!') + linkMsg);
+            closeModal();
+          } else {
+            alert('❌ Erro no upload: ' + (d.detail || 'Falha ao enviar'));
+          }
+        } catch (e) {
+          alert('Erro de conexão: ' + (e.message || e));
+        } finally {
+          document.getElementById('modal-btn-confirm').disabled = false;
+          document.getElementById('modal-btn-confirm').innerText = 'Confirmar Envio';
+        }
+      };
+    }
+
+    function escapeAttr(text) {
+      return text.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    }
+
+    function closeModal() {
+      document.getElementById('upload-modal').classList.add('hidden');
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Carregamento inicial
+    loadClips();
+  </script>
+</body>
+</html>
