@@ -437,23 +437,50 @@
       </div>
 
       <!-- YouTube OAuth Step-by-Step Card -->
-      <div class="bg-darkCard rounded-2xl border border-darkBorder p-6 shadow-xl space-y-4">
-        <div class="flex items-center gap-2">
-          <span class="text-2xl">🔴</span>
-          <div>
-            <h3 class="text-base font-bold text-white">Como Funciona a API do YouTube Shorts (Google Cloud)</h3>
-            <p class="text-xs text-slate-400">O YouTube usa autenticação oficial segura OAuth 2.0</p>
+      <div class="bg-darkCard rounded-2xl border border-darkBorder p-6 shadow-xl space-y-5">
+        <div class="flex items-center justify-between border-b border-darkBorder pb-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🔴</span>
+            <div>
+              <h3 class="text-base font-bold text-white">YouTube Shorts (Google Cloud OAuth 2.0)</h3>
+              <p class="text-xs text-slate-400">Autenticação oficial do Google para publicação automática no seu canal</p>
+            </div>
           </div>
+          <span id="yt-status-badge" class="px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+            ⚪ Não Configurado
+          </span>
         </div>
 
-        <div class="bg-darkBg p-4 rounded-xl border border-darkBorder text-xs text-slate-300 space-y-2">
+        <!-- Passo a Passo Google Cloud -->
+        <div class="bg-darkBg p-4 rounded-xl border border-darkBorder text-xs text-slate-300 space-y-3">
+          <p class="font-semibold text-white">Como obter seu arquivo <code class="text-amber-400 font-mono">client_secrets.json</code> (gratuito em 3 minutos):</p>
           <ol class="list-decimal list-inside space-y-1.5 text-slate-300">
-            <li>Acesse o <a href="https://console.cloud.google.com/" target="_blank" class="text-brand-400 underline">Google Cloud Console</a> e crie um projeto (ex: <em>Cortes GTA 6</em>).</li>
-            <li>No menu lateral, vá em <strong>APIs e Serviços &gt; Biblioteca</strong> e ative a <strong>YouTube Data API v3</strong>.</li>
-            <li>Em <strong>Credenciais</strong>, clique em <em>Criar Credenciais &gt; ID do Cliente OAuth</em> (Tipo: <em>Aplicativo para Computador</em>).</li>
-            <li>Faça o download do arquivo JSON gerado, renomeie para <code class="text-amber-400 font-mono">client_secrets.json</code> e salve na pasta raiz do projeto.</li>
-            <li>Na primeira postagem para o Shorts, uma janelinha do navegador pedirá para você autorizar o seu canal com 1 clique!</li>
+            <li>Acesse o <a href="https://console.cloud.google.com/" target="_blank" class="text-brand-400 underline font-semibold">Google Cloud Console</a> e crie um projeto (ex: <em>Cortes AI Studio</em>).</li>
+            <li>No menu de busca ou em <strong>APIs e Serviços &gt; Biblioteca</strong>, pesquise por <strong class="text-white">YouTube Data API v3</strong> e clique em <strong>Ativar</strong>.</li>
+            <li>Em <strong>Tela de Consentimento OAuth</strong>: escolha <em>Externo</em>, preencha o nome do app e adicione o seu e-mail do YouTube em <em>Usuários de Teste</em>.</li>
+            <li>Em <strong>Credenciais</strong>, clique em <strong>+ Criar Credenciais &gt; ID do Cliente OAuth</strong> (Tipo de Aplicativo: <em>Aplicativo para Computador / Desktop App</em>).</li>
+            <li>Clique na setinha de <strong>Download JSON</strong> da credencial criada.</li>
           </ol>
+        </div>
+
+        <!-- Ações no Painel -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+          <div>
+            <input type="file" id="file-youtube-secrets" accept=".json" class="hidden" onchange="uploadYoutubeSecrets(event)">
+            <button type="button" onclick="document.getElementById('file-youtube-secrets').click()" class="w-full py-2.5 bg-darkBg hover:bg-slate-800 border border-darkBorder text-slate-200 font-semibold rounded-lg text-xs shadow transition flex items-center justify-center gap-2">
+              <span>📁</span>
+              <span id="btn-upload-secrets-text">Carregar client_secrets.json</span>
+            </button>
+            <span class="text-[11px] text-slate-400 block mt-1 text-center">Selecione o arquivo baixado do Google Cloud</span>
+          </div>
+
+          <div>
+            <button type="button" id="btn-yt-connect" onclick="connectYouTube()" class="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg text-xs shadow transition flex items-center justify-center gap-2">
+              <span>🔗</span>
+              <span>Conectar e Autorizar Canal do YouTube</span>
+            </button>
+            <span class="text-[11px] text-slate-400 block mt-1 text-center">Abre a tela segura do Google no seu navegador</span>
+          </div>
         </div>
       </div>
 
@@ -713,6 +740,20 @@
           igBadge.innerHTML = '⚪ Não Conectado';
         }
 
+        const ytBadge = document.getElementById('yt-status-badge');
+        if (ytBadge) {
+          if (h.youtube_authenticated) {
+            ytBadge.className = 'px-2.5 py-1 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5';
+            ytBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Conectado (Canal Ativo)';
+          } else if (h.youtube_configured) {
+            ytBadge.className = 'px-2.5 py-1 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5';
+            ytBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span> Pronto (client_secrets.json OK)';
+          } else {
+            ytBadge.className = 'px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700';
+            ytBadge.innerHTML = '⚪ Não Configurado';
+          }
+        }
+
         const checks = [
           { name: 'FFmpeg 9.0 (Libass)', ok: h.ffmpeg, desc: 'Recorte vertical 9:16 e queima de legendas' },
           { name: 'Python ' + h.python, ok: true, desc: 'Ambiente de execução dos scripts' },
@@ -821,6 +862,58 @@
       } finally {
         btn.disabled = false;
         btn.innerText = '📲 Testar e Conectar Instagram Agora';
+      }
+    }
+
+    async function uploadYoutubeSecrets(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const btnText = document.getElementById('btn-upload-secrets-text');
+      btnText.innerText = 'Enviando...';
+
+      try {
+        const res = await fetch(API_BASE + '/api/youtube/upload-secrets', {
+          method: 'POST',
+          body: formData
+        });
+        const d = await res.json();
+        if (res.ok) {
+          alert('🎉 ' + d.message);
+          loadSystemHealth();
+        } else {
+          alert('Erro ao enviar client_secrets.json: ' + (d.detail || 'Arquivo inválido'));
+        }
+      } catch (err) {
+        alert('Erro de conexão ao enviar: ' + err);
+      } finally {
+        btnText.innerText = 'Carregar client_secrets.json';
+        event.target.value = '';
+      }
+    }
+
+    async function connectYouTube() {
+      const btn = document.getElementById('btn-yt-connect');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span><span>Aguardando autorização no navegador...</span>';
+
+      try {
+        const res = await fetch(API_BASE + '/api/youtube/auth', { method: 'POST' });
+        const d = await res.json();
+        if (res.ok) {
+          alert('🎉 ' + d.message);
+          loadSystemHealth();
+        } else {
+          alert('Erro na conexão com YouTube: ' + (d.detail || 'Falha ao autorizar'));
+        }
+      } catch (err) {
+        alert('Erro ao conectar com YouTube: ' + err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔗</span><span>Conectar e Autorizar Canal do YouTube</span>';
       }
     }
 

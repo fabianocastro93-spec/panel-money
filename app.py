@@ -8,7 +8,7 @@ import webbrowser
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -248,6 +248,7 @@ def api_health():
     ffmpeg_ok = shutil.which("ffmpeg") is not None
     gemini_key = bool(os.getenv("GEMINI_API_KEY"))
     yt_secrets = (BASE_DIR / "client_secrets.json").exists()
+    yt_token = (BASE_DIR / "token.pickle").exists()
     
     session_file = BASE_DIR / "instagram_session.json"
     ig_connected = session_file.exists()
@@ -258,10 +259,41 @@ def api_health():
         "python": sys.version.split()[0],
         "gemini_api": gemini_key,
         "youtube_configured": yt_secrets,
+        "youtube_authenticated": yt_token,
         "instagram_configured": ig_connected or bool(ig_user),
         "instagram_session": ig_connected,
         "instagram_username": ig_user
     }
+
+@app.post("/api/youtube/upload-secrets")
+async def upload_youtube_secrets(file: UploadFile = File(...)):
+    """Recebe o arquivo client_secrets.json e salva na raiz do projeto."""
+    try:
+        content = await file.read()
+        parsed = json.loads(content.decode("utf-8"))
+        if "installed" not in parsed and "web" not in parsed:
+            raise ValueError("O arquivo enviado não contém o formato OAuth Client ID do Google Cloud.")
+            
+        secrets_file = BASE_DIR / "client_secrets.json"
+        with open(secrets_file, "wb") as f:
+            f.write(content)
+            
+        return {"status": "success", "message": "Arquivo client_secrets.json salvo com sucesso na raiz do projeto!"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao salvar arquivo: {str(e)}")
+
+@app.post("/api/youtube/auth")
+def youtube_auth():
+    """Inicia a autenticação OAuth oficial do Google para autorizar o YouTube."""
+    try:
+        from src.uploader_youtube import get_authenticated_service
+        service = get_authenticated_service()
+        response = service.channels().list(part="snippet", mine=True).execute()
+        items = response.get("items", [])
+        channel_name = items[0]["snippet"]["title"] if items else "Canal do YouTube Conectado"
+        return {"status": "success", "channel": channel_name, "message": f"Conectado com sucesso ao canal: {channel_name}!"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro na autenticação do YouTube: {str(e)}")
 
 @app.post("/api/instagram/login")
 def instagram_login(req: InstagramLoginRequest):

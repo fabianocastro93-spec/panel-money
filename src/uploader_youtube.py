@@ -1,34 +1,40 @@
 import os
 import pickle
+from pathlib import Path
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_CLIENT_SECRETS = BASE_DIR / "client_secrets.json"
+DEFAULT_TOKEN_FILE = BASE_DIR / "token.pickle"
+
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 
-def get_authenticated_service(client_secrets_file: str = "client_secrets.json"):
+def get_authenticated_service(client_secrets_file: str = None):
     """Autentica na API do YouTube usando OAuth 2.0 e salva o token para reuso."""
     creds = None
-    token_file = "token.pickle"
+    token_path = DEFAULT_TOKEN_FILE
+    secrets_path = Path(client_secrets_file) if client_secrets_file else DEFAULT_CLIENT_SECRETS
     
-    if os.path.exists(token_file):
-        with open(token_file, "rb") as token:
+    if token_path.exists():
+        with open(token_path, "rb") as token:
             creds = pickle.load(token)
             
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if not os.path.exists(client_secrets_file):
+            if not secrets_path.exists():
                 raise FileNotFoundError(
-                    f"Arquivo '{client_secrets_file}' não encontrado! "
-                    "Baixe o arquivo de credenciais OAuth 2.0 no Google Cloud Console e coloque na raiz do projeto."
+                    f"Arquivo '{secrets_path.name}' não encontrado na pasta do projeto! "
+                    "Baixe o arquivo de credenciais OAuth 2.0 no Google Cloud Console e coloque em cortes/client_secrets.json."
                 )
-            flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(str(secrets_path), SCOPES)
             creds = flow.run_local_server(port=0)
             
-        with open(token_file, "wb") as token:
+        with open(token_path, "wb") as token:
             pickle.dump(creds, token)
             
     return build("youtube", "v3", credentials=creds)
@@ -39,7 +45,7 @@ def upload_short_to_youtube(
     description: str = "",
     tags: list = None,
     privacy_status: str = "private",
-    client_secrets_file: str = "client_secrets.json"
+    client_secrets_file: str = None
 ):
     """
     Faz o upload automático de um vídeo para o YouTube Shorts.
