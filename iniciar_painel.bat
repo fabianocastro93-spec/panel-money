@@ -12,11 +12,8 @@ if not exist "venv\Scripts\python.exe" (
     call setup_env.bat
 )
 
-:: Liberar porta 5000 caso tenha ficado algum processo anterior aberto
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
-    echo [*] Liberando porta 5000 (encerrando processo anterior %%a)...
-    taskkill /F /PID %%a >nul 2>&1
-)
+:: Libera a porta 5000 se houver algum processo anterior
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
 echo [*] Abrindo o painel no seu navegador: http://localhost:5000 ...
 start "" http://localhost:5000
