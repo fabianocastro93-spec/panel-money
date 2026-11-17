@@ -288,10 +288,19 @@ def youtube_auth():
     try:
         from src.uploader_youtube import get_authenticated_service
         service = get_authenticated_service()
-        response = service.channels().list(part="snippet", mine=True).execute()
-        items = response.get("items", [])
-        channel_name = items[0]["snippet"]["title"] if items else "Canal do YouTube Conectado"
-        return {"status": "success", "channel": channel_name, "message": f"Conectado com sucesso ao canal: {channel_name}!"}
+        channel_name = "Canal do YouTube"
+        try:
+            response = service.channels().list(part="snippet", mine=True).execute()
+            items = response.get("items", [])
+            if items:
+                channel_name = items[0]["snippet"]["title"]
+        except Exception:
+            pass
+        return {
+            "status": "success",
+            "channel": channel_name,
+            "message": "Conectado com sucesso ao YouTube Shorts! Canal liberado e pronto para envio."
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro na autenticação do YouTube: {str(e)}")
 
