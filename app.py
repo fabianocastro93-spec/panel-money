@@ -407,16 +407,56 @@ def list_clips():
                 ]
                 caption = f"🔥 {title}\n\nSiga @castro93c para mais novidades do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming"
                 
+            clean_base = title.replace("#shorts", "").strip()
+            suggested_youtube = [
+                f"{clean_base} #shorts",
+                "A FÍSICA DO GTA 6 VAI REVOLUCIONAR! 🔥 #shorts",
+                "O SEGREDO QUE A ROCKSTAR ESCONDEU NO GTA VI! 🎮 #shorts",
+                "VOCÊ SABIA DESSE DETALHE NO GTA 6?! 🤯 #shorts",
+                "OS NOVOS DETALHES DO GTA 6 IMPRESSIONAM! ✨ #shorts"
+            ]
+
             clips.append({
                 "filename": f.name,
                 "title": title,
                 "suggested_titles": suggested_titles,
+                "suggested_titles_youtube": suggested_youtube,
                 "caption": caption,
                 "size_mb": size_mb,
                 "created_at": time.strftime("%d/%m/%Y %H:%M", time.localtime(stat.st_mtime)),
                 "url": f"/videos/{f.name}"
             })
     return {"clips": clips}
+
+@app.delete("/api/clips/{filename}")
+def delete_clip(filename: str):
+    """Remove um clipe gerado e seus arquivos associados (.json, .jpg)."""
+    video_path = OUTPUT_SHORTS_DIR / filename
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo de vídeo não encontrado.")
+    
+    try:
+        video_path.unlink()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao excluir o vídeo: {str(e)}")
+
+    # Exclui metadados .json
+    meta_path = video_path.with_name(filename + ".json")
+    if meta_path.exists():
+        try:
+            meta_path.unlink()
+        except Exception:
+            pass
+
+    # Exclui thumbnail .jpg se existir
+    thumb_path = video_path.with_name(filename + ".jpg")
+    if thumb_path.exists():
+        try:
+            thumb_path.unlink()
+        except Exception:
+            pass
+
+    return {"status": "success", "message": f"Corte '{filename}' removido com sucesso!"}
 
 @app.post("/api/upload")
 def upload_clip(req: UploadRequest):

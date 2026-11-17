@@ -705,11 +705,14 @@
                 <a href="${API_BASE}${c.url}" download="${c.filename}" class="px-3 py-2 bg-darkBg hover:bg-slate-800 text-slate-200 rounded-lg text-xs font-medium text-center transition flex items-center justify-center gap-1.5 border border-darkBorder">
                   <span>📥</span> Baixar
                 </a>
-                <button onclick="openUploadModal('${c.filename}', 'youtube')" class="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5">
-                  <span>🔴</span> Shorts
+                <button onclick="deleteClip('${c.filename}')" class="px-3 py-2 bg-rose-950/30 hover:bg-rose-900/50 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5" title="Remover este corte do painel">
+                  <span>🗑️</span> Excluir
                 </button>
-                <button onclick="openUploadModal('${c.filename}', 'instagram')" class="col-span-2 px-3 py-2 bg-pink-600/20 hover:bg-pink-600/30 text-pink-400 border border-pink-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5">
-                  <span>📸</span> Publicar no Instagram Reels
+                <button onclick="openUploadModal('${c.filename}', 'youtube')" class="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5">
+                  <span>🔴</span> Postar Shorts
+                </button>
+                <button onclick="openUploadModal('${c.filename}', 'instagram')" class="px-3 py-2 bg-pink-600/20 hover:bg-pink-600/30 text-pink-400 border border-pink-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5">
+                  <span>📸</span> Postar Reels
                 </button>
               </div>
             </div>
@@ -917,6 +920,25 @@
       }
     }
 
+    async function deleteClip(filename) {
+      if (!confirm(`Deseja realmente remover o corte "${filename}" do painel?`)) {
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/clips/${encodeURIComponent(filename)}`, {
+          method: 'DELETE'
+        });
+        const d = await res.json();
+        if (res.ok) {
+          loadClips();
+        } else {
+          alert('Erro ao excluir: ' + (d.detail || 'Não foi possível remover o arquivo.'));
+        }
+      } catch (err) {
+        alert('Erro de conexão ao excluir vídeo: ' + err);
+      }
+    }
+
     function selectSuggestedTitle(title) {
       document.getElementById('modal-video-title').value = title;
     }
@@ -928,11 +950,44 @@
       const clips = window.allLoadedClips || [];
       const clip = clips.find(c => c.filename === filename) || {};
       
-      const mainTitle = clip.title || filename.replace('.mp4', '');
-      const captionText = clip.caption || '🔥 NOVIDADES GTA 6! Você sabia desse detalhe? Comente aí embaixo! 👇\n\nSiga @castro93c para mais novidades do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming';
-      const suggestions = clip.suggested_titles && clip.suggested_titles.length ? clip.suggested_titles : [mainTitle];
+      const baseTitle = clip.title || filename.replace('.mp4', '');
+      const cleanBase = baseTitle.replace(/#shorts/gi, '').trim();
 
-      document.getElementById('modal-title').innerText = platform === 'youtube' ? 'Publicar no YouTube Shorts' : 'Publicar no Instagram Reels';
+      let mainTitle = '';
+      let captionText = '';
+      let suggestions = [];
+
+      if (platform === 'youtube') {
+        document.getElementById('modal-title').innerHTML = '<span class="text-red-500">🔴</span> Publicar no YouTube Shorts';
+        document.getElementById('modal-btn-confirm').className = 'px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-semibold transition';
+        document.getElementById('modal-btn-confirm').innerText = 'Postar no YouTube Shorts';
+
+        mainTitle = `${cleanBase} #shorts`;
+        suggestions = clip.suggested_titles_youtube || [
+          `${cleanBase} #shorts`,
+          'A FÍSICA DO GTA 6 VAI REVOLUCIONAR! 🔥 #shorts',
+          'O SEGREDO DA ROCKSTAR NO GTA VI! 🎮 #shorts',
+          'VOCÊ SABIA DESSE DETALHE NO GTA 6?! 🤯 #shorts',
+          'A ROCKSTAR PASSOU DOS LIMITES NO GTA 6! 💥 #shorts'
+        ];
+
+        captionText = `${cleanBase}\n\nInscreva-se no canal para mais novidades e detalhes do GTA 6!\n\n#shorts #gta6 #gtavi #gta6brasil #rockstargames #games #viral #curiosidades`;
+      } else {
+        document.getElementById('modal-title').innerHTML = '<span class="text-pink-500">📸</span> Publicar no Instagram Reels';
+        document.getElementById('modal-btn-confirm').className = 'px-5 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-xl text-sm font-semibold transition';
+        document.getElementById('modal-btn-confirm').innerText = 'Postar no Instagram Reels';
+
+        mainTitle = cleanBase;
+        suggestions = clip.suggested_titles && clip.suggested_titles.length ? clip.suggested_titles : [
+          cleanBase,
+          'A FÍSICA DO GTA 6 VAI SER INSANA! 🔥',
+          'O SEGREDO DA ROCKSTAR NO GTA VI! 🎮',
+          'VOCÊ NOTOU ESSE DETALHE NO GTA 6?! 👀'
+        ];
+
+        captionText = clip.caption || `🔥 NOVIDADES GTA 6! Você sabia desse detalhe? Comente aí embaixo! 👇\n\nSiga @castro93c para mais novidades do GTA VI!\n\n#gta6 #gtavi #gta6brasil #rockstargames #shorts #viral #reels #gaming`;
+      }
+
       document.getElementById('modal-video-title').value = mainTitle;
       document.getElementById('modal-video-caption').value = captionText;
 
@@ -983,7 +1038,7 @@
           alert('Erro de conexão: ' + (e.message || e));
         } finally {
           document.getElementById('modal-btn-confirm').disabled = false;
-          document.getElementById('modal-btn-confirm').innerText = 'Confirmar Envio';
+          document.getElementById('modal-btn-confirm').innerText = activePlatform === 'youtube' ? 'Postar no YouTube Shorts' : 'Postar no Instagram Reels';
         }
       };
     }
