@@ -10,6 +10,9 @@ client_secrets.json
 credentials.json
 token.pickle
 token.json
+config/tiktok_session.json
+config/processed_videos.json
+config/viral_automation_log.json
 
 # Ambiente Virtual Python
 venv/

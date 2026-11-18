@@ -25,9 +25,13 @@ def translate_text(text: str, target_lang: str = "pt") -> str:
             from google import genai
             client = genai.Client(api_key=gemini_key)
             prompt = f"Traduza o seguinte texto para português brasileiro natural, fluido e chamativo para shorts de GTA 6:\n\n{text}"
-            res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-            if res.text and res.text.strip():
-                return res.text.strip()
+            for m in ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash-lite"]:
+                try:
+                    res = client.models.generate_content(model=m, contents=prompt)
+                    if res.text and res.text.strip():
+                        return res.text.strip()
+                except Exception:
+                    continue
         except Exception as e:
             print(f"[!] Erro ao traduzir com Gemini: {e}")
 

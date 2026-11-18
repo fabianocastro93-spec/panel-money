@@ -63,12 +63,17 @@ class ProcessRequest(BaseModel):
     subtitle_style: str = "tiktok_yellow"
     auto_youtube: bool = False
     auto_instagram: bool = False
+    auto_tiktok: bool = False
 
 class UploadRequest(BaseModel):
     video_filename: str
-    platform: str  # "youtube" ou "instagram"
+    platform: str  # "youtube", "instagram", "tiktok" ou "combo"
     title: Optional[str] = None
     caption: Optional[str] = None
+    caption_youtube: Optional[str] = None
+    caption_instagram: Optional[str] = None
+    caption_tiktok: Optional[str] = None
+    privacy_status: Optional[str] = "public"
 
 class ApiKeysRequest(BaseModel):
     gemini_key: Optional[str] = None
@@ -79,6 +84,12 @@ class InstagramLoginRequest(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
     sessionid: Optional[str] = None
+
+class TikTokSessionRequest(BaseModel):
+    sessionid: str
+
+class AutoViralRequest(BaseModel):
+    count: Optional[int] = 1
 
 def add_log(msg: str):
     timestamp = time.strftime("%H:%M:%S")
@@ -158,14 +169,17 @@ def run_pipeline_worker(req: ProcessRequest):
                         os.remove(temp_orig_audio)
             
             job_state["stage"] = "render"
-            add_log(f"Passo 5/5: Renderizando corte #{idx} em 9:16 vertical com legendas animadas em Português...")
+            add_log(f"Passo 5/5: Renderizando corte #{idx} em 9:16 vertical com gancho no topo e legendas karaokê...")
+            c_title = clip.get("title", "ESSE DETALHE NO GTA 6 NINGUÉM VIU! 😱")
             render_vertical_short(
                 source_video_path=video_path,
                 start_sec=clip["start"],
                 end_sec=clip["end"],
                 output_path=out_path,
                 subtitles_words=clip_words,
-                dubbed_audio_path=dubbed_audio_path
+                dubbed_audio_path=dubbed_audio_path,
+                hook_title=c_title,
+                brand_tag="@castro93c"
             )
             
             # Salvar metadados com títulos virais sugeridos e legenda específica
@@ -216,8 +230,8 @@ def run_pipeline_worker(req: ProcessRequest):
             from src.uploader_youtube import upload_short_to_youtube
             for c in job_state["current_clips"]:
                 try:
-                    upload_short_to_youtube(str(OUTPUT_SHORTS_DIR / c["filename"]), title=c["title"], description=c["hook"])
-                    add_log(f"[YouTube] Publicado: {c['title']}")
+                    upload_short_to_youtube(str(OUTPUT_SHORTS_DIR / c["filename"]), title=c["title"], description=c["hook"], privacy_status="public")
+                    add_log(f"[YouTube] Publicado como Público: {c['title']}")
                 except Exception as e:
                     add_log(f"[YouTube Erro] {e}")
 
@@ -264,6 +278,9 @@ def api_health():
     ig_connected = session_file.exists()
     ig_user = os.getenv("INSTAGRAM_USERNAME", "")
     
+    from src.uploader_tiktok import is_tiktok_connected
+    tiktok_ok = is_tiktok_connected()
+
     return {
         "ffmpeg": ffmpeg_ok,
         "python": sys.version.split()[0],
@@ -272,7 +289,9 @@ def api_health():
         "youtube_authenticated": yt_token,
         "instagram_configured": ig_connected or bool(ig_user),
         "instagram_session": ig_connected,
-        "instagram_username": ig_user
+        "instagram_username": ig_user,
+        "tiktok_configured": tiktok_ok,
+        "tiktok_session": tiktok_ok
     }
 
 @app.post("/api/youtube/upload-secrets")
@@ -348,6 +367,25 @@ def instagram_login(req: InstagramLoginRequest):
         print(f"[!] Erro ao autenticar no Instagram: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/tiktok/login")
+def tiktok_login(req: TikTokSessionRequest):
+    """Vincula a conta do TikTok utilizando o cookie sessionid."""
+    try:
+        from src.uploader_tiktok import save_tiktok_session
+        sid = req.sessionid.strip() if req.sessionid else ""
+        if not sid:
+            raise HTTPException(status_code=400, detail="Por favor, forneça o cookie 'sessionid' do TikTok.")
+        save_tiktok_session(sid)
+        return {
+            "status": "success",
+            "message": "Sessão do TikTok vinculada e salva com sucesso!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[!] Erro ao vincular TikTok: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/api/save-keys")
 def save_keys(req: ApiKeysRequest):
     """Permite salvar usuário do Instagram e Chave Gemini direto pelo Painel."""
@@ -381,6 +419,43 @@ def start_processing(req: ProcessRequest, background_tasks: BackgroundTasks):
     
     background_tasks.add_task(run_pipeline_worker, req)
     return {"status": "started", "message": "Processamento iniciado em segundo plano."}
+
+def run_auto_viral_worker(count: int = 1):
+    global job_state
+    try:
+        from src.auto_viral_finder import process_and_post_auto
+        job_state["status"] = "running"
+        job_state["progress"] = 15
+        job_state["stage"] = "download"
+        job_state["logs"] = []
+        add_log(f"⚡ Piloto Automático: Rastreando os vídeos mais virais de GTA 6 no YouTube (Meta: {count} vídeo(s))...")
+        reports = process_and_post_auto(count=count, auto_youtube=True, auto_instagram=True)
+        job_state["status"] = "completed"
+        job_state["progress"] = 100
+        add_log(f"✨ Ciclo concluído! {len(reports)} vídeo(s) viral(is) processado(s) e postado(s) com sucesso!")
+    except Exception as e:
+        job_state["status"] = "error"
+        add_log(f"[Erro no Piloto Automático]: {str(e)}")
+
+@app.post("/api/auto-viral/run")
+def trigger_auto_viral(background_tasks: BackgroundTasks, req: Optional[AutoViralRequest] = None):
+    global job_state
+    if job_state["status"] == "running":
+        raise HTTPException(status_code=400, detail="Já existe um processamento em andamento.")
+    count = req.count if (req and req.count) else 1
+    background_tasks.add_task(run_auto_viral_worker, count)
+    return {"status": "started", "message": f"Piloto automático iniciado para {count} vídeo(s) viral(is)!"}
+
+@app.get("/api/auto-viral/history")
+def get_auto_viral_history():
+    history_file = BASE_DIR / "config" / "viral_automation_log.json"
+    if history_file.exists():
+        try:
+            with open(history_file, "r", encoding="utf-8") as f:
+                return {"history": json.load(f)}
+        except Exception:
+            pass
+    return {"history": []}
 
 @app.get("/api/clips")
 def list_clips():
@@ -491,8 +566,9 @@ def upload_clip(req: UploadRequest):
         if req.platform == "youtube":
             from src.uploader_youtube import upload_short_to_youtube
             title = req.title or req.video_filename
-            url = upload_short_to_youtube(str(video_path), title=title, description=req.caption or "")
-            return {"status": "success", "platform": "youtube", "url": url, "message": "Publicado no YouTube Shorts com sucesso!"}
+            privacy = req.privacy_status or "public"
+            url = upload_short_to_youtube(str(video_path), title=title, description=req.caption or "", privacy_status=privacy)
+            return {"status": "success", "platform": "youtube", "url": url, "message": f"Publicado no YouTube Shorts como {privacy.upper()} com sucesso!"}
             
         elif req.platform == "instagram":
             from src.uploader_instagram import upload_reel_to_instagram
@@ -506,8 +582,59 @@ def upload_clip(req: UploadRequest):
                 "message": "Publicado no Instagram Reels com sucesso!"
             }
             
+        elif req.platform == "tiktok":
+            from src.uploader_tiktok import upload_to_tiktok
+            caption = req.caption_tiktok or req.caption or req.title or ""
+            res = upload_to_tiktok(str(video_path), description=caption)
+            return {
+                "status": "success",
+                "platform": "tiktok",
+                "message": "Publicado no TikTok com sucesso!",
+                "result": res
+            }
+
+        elif req.platform in ["both", "combo", "all"]:
+            results = {}
+            # 1. Envio para o YouTube Shorts
+            try:
+                from src.uploader_youtube import upload_short_to_youtube
+                title = req.title or req.video_filename
+                privacy = req.privacy_status or "public"
+                yt_caption = req.caption_youtube or req.caption or ""
+                yt_url = upload_short_to_youtube(str(video_path), title=title, description=yt_caption, privacy_status=privacy)
+                results["youtube"] = yt_url
+            except Exception as e:
+                results["youtube_error"] = str(e)
+
+            # 2. Envio para o Instagram Reels
+            try:
+                from src.uploader_instagram import upload_reel_to_instagram
+                ig_caption = req.caption_instagram or req.caption or ""
+                res = upload_reel_to_instagram(str(video_path), caption=ig_caption)
+                reel_url = res.get("url") or f"https://www.instagram.com/reel/{res.get('code', '')}/"
+                results["instagram"] = reel_url
+            except Exception as e:
+                results["instagram_error"] = str(e)
+
+            # 3. Envio para o TikTok (se vinculado)
+            try:
+                from src.uploader_tiktok import is_tiktok_connected, upload_to_tiktok
+                if is_tiktok_connected():
+                    tt_caption = req.caption_tiktok or req.caption_instagram or req.caption or ""
+                    tt_res = upload_to_tiktok(str(video_path), description=tt_caption)
+                    results["tiktok"] = "Publicado no TikTok com sucesso!"
+            except Exception as e:
+                results["tiktok_error"] = str(e)
+
+            return {
+                "status": "success",
+                "platform": "combo",
+                "results": results,
+                "message": "Combo executado! Publicação enviada para as redes ativas."
+            }
+
         else:
-            raise HTTPException(status_code=400, detail="Plataforma inválida. Use 'youtube' ou 'instagram'.")
+            raise HTTPException(status_code=400, detail="Plataforma inválida. Use 'youtube', 'instagram', 'tiktok' ou 'combo'.")
     except HTTPException:
         raise
     except Exception as e:

@@ -29,14 +29,18 @@ Crie exatamente 3 títulos ultra-chamativos, curtos (máximo 50 caracteres), em 
 Retorne apenas um JSON puro com uma lista de strings:
 ["TÍTULO 1 🔥", "TÍTULO 2 😱", "TÍTULO 3 🎮"]
 """
-            res = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config={"response_mime_type": "application/json"}
-            )
-            titles = json.loads(res.text.strip())
-            if isinstance(titles, list) and len(titles) >= 3:
-                return titles[:3]
+            for m in ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash-lite"]:
+                try:
+                    res = client.models.generate_content(
+                        model=m,
+                        contents=prompt,
+                        config={"response_mime_type": "application/json"}
+                    )
+                    titles = json.loads(res.text.strip())
+                    if isinstance(titles, list) and len(titles) >= 3:
+                        return titles[:3]
+                except Exception:
+                    continue
         except Exception as e:
             print(f"[!] Erro ao gerar títulos com Gemini: {e}")
 
@@ -94,9 +98,14 @@ Requisitos:
 - Uma pergunta provocativa para gerar comentários dos fãs.
 Não inclua título nem hashtags (vou adicionar depois). Apenas o corpo do texto explicativo e pergunta.
 """
-            res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-            if res.text and res.text.strip():
-                summary = res.text.strip()
+            for m in ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash-lite"]:
+                try:
+                    res = client.models.generate_content(model=m, contents=prompt)
+                    if res.text and res.text.strip():
+                        summary = res.text.strip()
+                        break
+                except Exception:
+                    continue
         except Exception as e:
             print(f"[!] Erro ao gerar resumo da legenda com Gemini: {e}")
 
@@ -190,18 +199,22 @@ Responda ESTRITAMENTE em formato JSON:
   }}
 ]
 """
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json"
-        )
-    )
-    
-    content = response.text.strip()
-    clips = json.loads(content)
-    print(f"[OK] {len(clips)} momentos virais identificados com títulos pela IA!")
-    return clips
+    for m in ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash-lite"]:
+        try:
+            response = client.models.generate_content(
+                model=m,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
+            content = response.text.strip()
+            clips = json.loads(content)
+            print(f"[OK] {len(clips)} momentos virais identificados com títulos pela IA ({m})!")
+            return clips
+        except Exception:
+            continue
+    raise RuntimeError("Nenhum modelo Gemini respondeu no momento. Usando modo heurístico.")
 
 def _detect_heuristic(segments: list, max_clips: int, min_sec: int, max_sec: int) -> list:
     """Fallback inteligente: localiza trechos com alta densidade e cria títulos temáticos baseados no texto."""
