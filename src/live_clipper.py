@@ -22,13 +22,13 @@ MIN_DURATION_SECONDS = 10.0
 TWITCH_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 
 DEFAULT_STREAMERS = [
+    "paulinholokobr",
+    "loud_coringa",
     "alanzoka",
     "gaules",
-    "loud_coringa",
     "nobru",
-    "paulinhokleber",
-    "cellbit",
     "casimito",
+    "cellbit",
     "xqc",
     "kaicenat"
 ]
@@ -80,6 +80,20 @@ def get_twitch_channel_clips(
     Filtra estritamente vídeos com duração >= min_duration (padrão 10s).
     """
     clean_login = channel_login.strip().lower().replace("@", "")
+    # Mapeamento amigável de nomes populares
+    ALIASES = {
+        "paulinho": "paulinholokobr",
+        "paulinho o loko": "paulinholokobr",
+        "paulinho o loco": "paulinholokobr",
+        "paulinholoko": "paulinholokobr",
+        "paulinhokleber": "paulinholokobr",
+        "coringa": "loud_coringa",
+        "loud coringa": "loud_coringa",
+        "alan": "alanzoka",
+        "caze": "casimito",
+        "casimiro": "casimito",
+    }
+    clean_login = ALIASES.get(clean_login, clean_login)
     query = """
     query($login: String!, $limit: Int!) {
       user(login: $login) {
