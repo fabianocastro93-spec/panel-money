@@ -531,6 +531,13 @@ def run_live_snipe_worker(streamer: Optional[str], game: str, auto_upload: bool)
         job_state["status"] = "error"
         add_log(f"[!] Erro no sniper de live: {str(e)}")
 
+@app.get("/api/live/active_streams")
+def list_active_streams(streamer: Optional[str] = None):
+    """Retorna os streamers e canais de GTA que estão transmitindo AO VIVO AGORA na Twitch."""
+    from src.live_clipper import get_active_live_streams
+    streams = get_active_live_streams(target_streamer=streamer)
+    return {"status": "success", "total": len(streams), "streams": streams}
+
 @app.get("/api/live/clips")
 def list_live_clips(query: Optional[str] = "", min_duration: Optional[float] = 10.0, limit: Optional[int] = 15, platform: Optional[str] = "all"):
     """Busca os clipes mais virais de lives (Twitch e YouTube) filtrando sempre por >= 10s."""

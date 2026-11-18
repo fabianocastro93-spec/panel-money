@@ -69,6 +69,155 @@ def save_processed_clip(clip_id: str, title: str, streamer: str, views: int):
         }, f, indent=2, ensure_ascii=False)
 
 
+def get_active_live_streams(target_streamer: str = None) -> List[Dict]:
+    """
+    Retorna a lista de streamers e canais de GTA V / GTA VI que estão TRANSMITINDO AO VIVO AGORA.
+    Inclui espectadores em tempo real, jogo atual, título da transmissão e preview ao vivo.
+    """
+    clean = target_streamer.strip().lower().replace("@", "") if target_streamer else None
+    if clean:
+        ALIASES = {
+            "paulinho": "paulinholokobr",
+            "paulinho o loko": "paulinholokobr",
+            "paulinho o loco": "paulinholokobr",
+            "paulinholoko": "paulinholokobr",
+            "paulinhokleber": "paulinholokobr",
+            "coringa": "loud_coringa",
+            "loud coringa": "loud_coringa",
+            "alan": "alanzoka",
+            "caze": "casimito",
+            "casimiro": "casimito"
+        }
+        clean = ALIASES.get(clean, clean)
+        
+    logins_to_check = DEFAULT_STREAMERS.copy()
+    if clean and clean not in logins_to_check:
+        logins_to_check.insert(0, clean)
+        
+    query = """
+    query($logins: [String!]) {
+      users(logins: $logins) {
+        id
+        login
+        displayName
+        profileImageURL(width: 150)
+        stream {
+          id
+          title
+          viewersCount
+          createdAt
+          game {
+            name
+          }
+          previewImageURL(width: 640, height: 360)
+        }
+      }
+      gta6: game(name: "Grand Theft Auto VI") {
+        streams(first: 6) {
+          edges {
+            node {
+              id
+              title
+              viewersCount
+              createdAt
+              broadcaster {
+                login
+                displayName
+                profileImageURL(width: 150)
+              }
+              previewImageURL(width: 640, height: 360)
+            }
+          }
+        }
+      }
+      gta5: game(name: "Grand Theft Auto V") {
+        streams(first: 6) {
+          edges {
+            node {
+              id
+              title
+              viewersCount
+              createdAt
+              broadcaster {
+                login
+                displayName
+                profileImageURL(width: 150)
+              }
+              previewImageURL(width: 640, height: 360)
+            }
+          }
+        }
+      }
+    }
+    """
+    payload = {
+        "query": query,
+        "variables": {"logins": logins_to_check}
+    }
+    req = urllib.request.Request(
+        "https://gql.twitch.tv/gql",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Client-ID": TWITCH_CLIENT_ID,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
+    )
+    
+    live_streams = []
+    seen_logins = set()
+    
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8")).get("data", {})
+            users = data.get("users", [])
+            for u in users:
+                if not u:
+                    continue
+                st = u.get("stream")
+                if st:
+                    seen_logins.add(u["login"])
+                    game = (st.get("game") or {}).get("name", "Games")
+                    live_streams.append({
+                        "streamer": u["displayName"],
+                        "login": u["login"],
+                        "avatar": u["profileImageURL"],
+                        "title": st.get("title", "Transmissão ao Vivo"),
+                        "game": game,
+                        "viewers": int(st.get("viewersCount", 0)),
+                        "preview": st.get("previewImageURL"),
+                        "url": f"https://www.twitch.tv/{u['login']}",
+                        "is_live": True,
+                        "platform": "twitch"
+                    })
+                    
+            # Canais ao vivo de GTA 6 e GTA 5
+            for cat_key, cat_name in [("gta6", "GTA VI"), ("gta5", "GTA V")]:
+                cat_data = data.get(cat_key) or {}
+                for edge in (cat_data.get("streams") or {}).get("edges", []):
+                    n = edge.get("node", {})
+                    b = n.get("broadcaster", {})
+                    login = b.get("login")
+                    if login and login not in seen_logins:
+                        seen_logins.add(login)
+                        live_streams.append({
+                            "streamer": b.get("displayName", login),
+                            "login": login,
+                            "avatar": b.get("profileImageURL"),
+                            "title": n.get("title", f"Live de {cat_name}"),
+                            "game": cat_name,
+                            "viewers": int(n.get("viewersCount", 0)),
+                            "preview": n.get("previewImageURL"),
+                            "url": f"https://www.twitch.tv/{login}",
+                            "is_live": True,
+                            "platform": "twitch"
+                        })
+    except Exception as e:
+        print(f"[!] Erro ao buscar canais ao vivo na Twitch: {e}")
+        
+    live_streams.sort(key=lambda x: x["viewers"], reverse=True)
+    return live_streams
+
+
 def get_twitch_channel_clips(
     channel_login: str,
     limit: int = 15,
@@ -77,6 +226,7 @@ def get_twitch_channel_clips(
 ) -> List[Dict]:
     """
     Busca os clipes mais assistidos da live de um streamer específico na Twitch.
+    Prioriza clipes gerados HOJE durante a live atual e depois da semana.
     Filtra estritamente vídeos com duração >= min_duration (padrão 10s).
     """
     clean_login = channel_login.strip().lower().replace("@", "")
@@ -100,7 +250,21 @@ def get_twitch_channel_clips(
         id
         login
         displayName
-        clips(first: $limit, criteria: { filter: LAST_WEEK }) {
+        clips_today: clips(first: $limit, criteria: { filter: LAST_DAY }) {
+          edges {
+            node {
+              id
+              slug
+              url
+              title
+              viewCount
+              durationSeconds
+              createdAt
+              thumbnailURL
+            }
+          }
+        }
+        clips_week: clips(first: $limit, criteria: { filter: LAST_WEEK }) {
           edges {
             node {
               id
@@ -132,6 +296,7 @@ def get_twitch_channel_clips(
     )
     
     results = []
+    seen_ids = set()
     try:
         with urllib.request.urlopen(req, timeout=12) as resp:
             data = json.loads(resp.read().decode("utf-8"))
@@ -140,17 +305,26 @@ def get_twitch_channel_clips(
                 return []
                 
             streamer_name = user.get("displayName", clean_login)
-            edges = user.get("clips", {}).get("edges", [])
-            for edge in edges:
+            
+            # Combina clipes de hoje e da semana
+            edges_today = user.get("clips_today", {}).get("edges", [])
+            edges_week = user.get("clips_week", {}).get("edges", [])
+            all_edges = edges_today + edges_week
+            
+            for edge in all_edges:
                 node = edge.get("node", {})
-                duration = float(node.get("durationSeconds", 0))
+                cid = node.get("id")
+                if not cid or cid in seen_ids:
+                    continue
+                seen_ids.add(cid)
                 
-                # Regra inegociável do usuário: vídeos de 10 segundos pra cima!
+                duration = float(node.get("durationSeconds", 0))
+                # Regra inegociável: vídeos de 10 segundos pra cima!
                 if duration < min_duration:
                     continue
                     
                 results.append({
-                    "id": node.get("id"),
+                    "id": cid,
                     "slug": node.get("slug"),
                     "url": node.get("url"),
                     "title": node.get("title") or f"Momento Épico de {streamer_name}",

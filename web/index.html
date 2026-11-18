@@ -372,6 +372,37 @@
         </div>
       </div>
 
+      <!-- SEÇÃO 1: TRANSMISSÕES AO VIVO AGORA (CANAL ONLINE NA TWITCH & YOUTUBE) -->
+      <div class="space-y-3 bg-darkCard/90 rounded-2xl border border-red-500/30 p-5 shadow-xl">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
+            <h3 class="text-base font-extrabold text-white flex items-center gap-2">
+              🔴 Transmissões Ao Vivo Agora (GTA & Streamers)
+            </h3>
+            <span id="live-online-count" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+              Consultando lives...
+            </span>
+          </div>
+          <button onclick="loadActiveStreams()" class="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1.5 transition font-semibold">
+            <span>🔄</span> Atualizar Lives
+          </button>
+        </div>
+
+        <p class="text-xs text-slate-400">
+          Streamers que estão jogando ao vivo neste momento. Clique em <strong>⚡ Cortar Live</strong> para caçar o momento mais quente da transmissão atual!
+        </p>
+
+        <!-- Grid de Canais Ao Vivo -->
+        <div id="active-streams-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+          <!-- Inserido dinamicamente via JS -->
+        </div>
+
+        <div id="active-streams-loading" class="text-center py-6 bg-darkBg/60 rounded-xl border border-darkBorder hidden">
+          <span class="text-xs text-slate-400 animate-pulse">Consultando canais ao vivo na Twitch & YouTube...</span>
+        </div>
+      </div>
+
       <!-- Barra de Filtros e Busca de Streamers -->
       <div class="bg-darkCard rounded-2xl border border-darkBorder p-5 shadow-xl space-y-4">
         <div class="flex flex-col md:flex-row gap-3">
@@ -753,9 +784,105 @@
       document.getElementById('tab-btn-gallery').className = tab === 'gallery' ? 'px-4 py-2 text-sm font-medium rounded-lg transition-all bg-brand-600 text-white shadow' : 'px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white';
       document.getElementById('tab-btn-system').className = tab === 'system' ? 'px-4 py-2 text-sm font-medium rounded-lg transition-all bg-brand-600 text-white shadow' : 'px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white';
 
-      if (tab === 'live') loadLiveClips();
+      if (tab === 'live') {
+        loadActiveStreams();
+        loadLiveClips();
+      }
       if (tab === 'gallery') loadClips();
       if (tab === 'system') loadSystemHealth();
+    }
+
+    async function loadActiveStreams() {
+      const grid = document.getElementById('active-streams-grid');
+      const loader = document.getElementById('active-streams-loading');
+      const countBadge = document.getElementById('live-online-count');
+      
+      loader.classList.remove('hidden');
+
+      try {
+        const res = await fetch(API_BASE + '/api/live/active_streams');
+        const data = await res.json();
+        loader.classList.add('hidden');
+        
+        const streams = data.streams || [];
+        countBadge.innerText = `${streams.length} canais ao vivo`;
+
+        if (streams.length === 0) {
+          grid.innerHTML = `
+            <div class="col-span-full py-5 text-center text-xs text-slate-500 bg-darkBg/60 rounded-xl border border-darkBorder">
+              Nenhum canal monitorado transmitindo no exato momento. Use a busca abaixo para ver os clipes gravados!
+            </div>
+          `;
+          return;
+        }
+
+        grid.innerHTML = streams.map(s => `
+          <div class="bg-darkBg/80 rounded-xl border border-purple-500/40 hover:border-purple-500/80 p-3 flex flex-col justify-between shadow-lg relative overflow-hidden transition group">
+            <div class="relative rounded-lg overflow-hidden aspect-video bg-black mb-2.5">
+              <img src="${s.preview}" alt="${escapeHtml(s.streamer)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+              <span class="absolute top-1.5 left-1.5 px-2 py-0.5 rounded text-[10px] font-extrabold bg-red-600 text-white flex items-center gap-1 shadow">
+                <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> AO VIVO
+              </span>
+              <span class="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-black/80 text-white backdrop-blur flex items-center gap-1">
+                👁️ ${Number(s.viewers).toLocaleString('pt-BR')}
+              </span>
+            </div>
+
+            <div class="space-y-1.5 mb-3">
+              <div class="flex items-center gap-2">
+                <img src="${s.avatar}" class="w-6 h-6 rounded-full border border-purple-400 object-cover">
+                <strong class="text-xs text-white truncate" title="${escapeHtml(s.streamer)}">${escapeHtml(s.streamer)}</strong>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-300 font-semibold truncate max-w-[90px]">${escapeHtml(s.game)}</span>
+              </div>
+              <p class="text-[11px] text-slate-300 line-clamp-1" title="${escapeHtml(s.title)}">
+                ${escapeHtml(s.title)}
+              </p>
+            </div>
+
+            <div class="flex items-center gap-1.5 pt-1 border-t border-darkBorder">
+              <button onclick="snipeSpecificLive('${escapeHtml(s.login)}', '${escapeHtml(s.streamer)}')" class="flex-1 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:brightness-110 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 shadow">
+                <span>⚡</span> Cortar Live
+              </button>
+              <button onclick="quickSearchLive('${escapeHtml(s.login)}')" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-semibold border border-slate-700 transition" title="Ver clipes desta live">
+                🎬 Clipes
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (err) {
+        loader.classList.add('hidden');
+        console.error('Erro ao carregar canais ao vivo:', err);
+      }
+    }
+
+    async function snipeSpecificLive(streamerLogin, streamerName) {
+      if (!confirm(`Deseja capturar o melhor momento da live de ${streamerName} agora?\nO robô vai buscar os clipes gerados hoje na transmissão atual, editar em 9:16 vertical e postar no YouTube Shorts, Instagram Reels e TikTok!`)) {
+        return;
+      }
+
+      switchTab('create');
+      document.getElementById('progress-card').classList.remove('hidden');
+
+      try {
+        const res = await fetch(API_BASE + '/api/live/snipe_best', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            streamer: streamerLogin,
+            game: 'Grand Theft Auto VI',
+            auto_upload: true
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert('Erro: ' + (data.detail || 'Não foi possível iniciar.'));
+          return;
+        }
+        startPolling();
+      } catch (err) {
+        alert('Erro ao conectar: ' + err);
+      }
     }
 
     let currentLivePlatform = 'all';
