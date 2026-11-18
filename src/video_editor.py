@@ -18,6 +18,9 @@ def create_ass_subtitles(
     2. Banner de Gancho Viral no topo (Box escuro com texto chamativo).
     3. Legendas estilo Karaokê no rodapé (destaca palavra por palavra em amarelo neon).
     """
+    # Estilo refinado para retenção máxima no TikTok/Reels/Shorts:
+    # Fontsize 58 (tamanho ideal para celular), Outline 6 (borda preta forte para contraste total),
+    # MarginV 420 (zona segura acima dos botões do TikTok/Reels e abaixo do foco do vídeo)
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {video_width}
@@ -26,7 +29,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: ViralShorts,Arial,66,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,1,5,2,2,40,40,400,1
+Style: ViralShorts,Arial,58,&H00FFFFFF,&H000000FF,&H00000000,&H90000000,-1,0,0,0,100,100,1,0,1,6,2,2,60,60,420,1
 Style: TopHook,Arial,52,&H00FFFFFF,&H000000FF,&H00000000,&HB0000000,-1,0,0,0,100,100,1,0,3,10,0,8,60,60,220,1
 Style: BrandWatermark,Arial,38,&H00DFFF00,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,1,3,2,8,40,40,140,1
 
@@ -53,36 +56,87 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             clean_hook = " ".join(words_h[:mid]) + "\\N" + " ".join(words_h[mid:])
         events.append(f"Dialogue: 0,0:00:00.00,{final_time},TopHook,,0,0,0,,{clean_hook}")
 
-    # 3. Legendas Karaokê Dinâmicas no Rodapé
+    # 3. Legendas Karaokê Dinâmicas Anti-Atropelamento (Zero Sobreposição)
     if words:
-        chunk_size = 4
-        for i in range(0, len(words), chunk_size):
-            chunk = words[i:i + chunk_size]
-            if not chunk:
+        clean_words = []
+        for w in words:
+            txt = str(w.get("word", "")).strip()
+            if not txt:
                 continue
+            clean_words.append({
+                "word": txt,
+                "start": float(w.get("start", 0)),
+                "end": float(w.get("end", 0))
+            })
             
-            # Se tivermos timestamps individuais por palavra, aplica efeito Karaokê
-            has_word_timing = any(w.get("end", 0) > w.get("start", 0) for w in chunk)
-            if has_word_timing:
-                for active_idx, target_word in enumerate(chunk):
-                    w_start = _format_ass_time(target_word["start"])
-                    w_end = _format_ass_time(target_word["end"])
+        if clean_words:
+            # Ordenação estrita por tempo de início
+            clean_words.sort(key=lambda x: x["start"])
+            
+            # Limpa qualquer sobreposição entre palavras adjacentes
+            for i in range(len(clean_words) - 1):
+                if clean_words[i]["end"] > clean_words[i+1]["start"]:
+                    clean_words[i]["end"] = max(clean_words[i]["start"] + 0.08, clean_words[i+1]["start"])
                     
+            # Agrupamento dinâmico: 2 a 3 palavras por linha (máximo 24 caracteres)
+            chunks = []
+            current_chunk = []
+            current_chars = 0
+            
+            for w in clean_words:
+                w_len = len(w["word"])
+                if len(current_chunk) >= 3 or (current_chunk and current_chars + w_len > 24):
+                    chunks.append(current_chunk)
+                    current_chunk = [w]
+                    current_chars = w_len
+                else:
+                    current_chunk.append(w)
+                    current_chars += w_len + 1
+                    
+            if current_chunk:
+                chunks.append(current_chunk)
+                
+            raw_dialogues = []
+            for chunk_idx, chunk in enumerate(chunks):
+                c_start = chunk[0]["start"]
+                if chunk_idx < len(chunks) - 1:
+                    next_start = chunks[chunk_idx + 1][0]["start"]
+                    c_end = min(next_start, chunk[-1]["end"] + 0.35)
+                else:
+                    c_end = min(duration_sec, chunk[-1]["end"] + 0.4)
+                c_end = max(c_start + 0.3, c_end)
+                
+                # Gera as transições de palavra iluminada dentro do chunk
+                for active_idx in range(len(chunk)):
+                    w_start = chunk[active_idx]["start"]
+                    if active_idx < len(chunk) - 1:
+                        w_end = min(c_end, max(w_start + 0.1, chunk[active_idx + 1]["start"]))
+                    else:
+                        w_end = c_end
+                        
                     styled_chunk = []
                     for j, w in enumerate(chunk):
                         w_text = w["word"].upper().strip()
                         if j == active_idx:
-                            styled_chunk.append(f"{{\\c&H0000FFFF&}}{w_text}") # Destaque amarelo neon
+                            styled_chunk.append(f"{{\\c&H0000FFFF&}}{w_text}") # Amarelo neon vibrante
                         else:
-                            styled_chunk.append(f"{{\\c&H00FFFFFF&}}{w_text}") # Branco padrão
-                    
+                            styled_chunk.append(f"{{\\c&H00FFFFFF&}}{w_text}") # Branco limpo de alta legibilidade
+                            
                     line_text = " ".join(styled_chunk)
-                    events.append(f"Dialogue: 1,{w_start},{w_end},ViralShorts,,0,0,0,,{line_text}")
-            else:
-                start_time = _format_ass_time(chunk[0]["start"])
-                end_time = _format_ass_time(chunk[-1]["end"])
-                text = " ".join([w["word"] for w in chunk]).upper()
-                events.append(f"Dialogue: 1,{start_time},{end_time},ViralShorts,,0,0,0,,{{\\c&H0000FFFF&}}{text}")
+                    raw_dialogues.append({"start": w_start, "end": w_end, "text": line_text})
+                    
+            # Clamping Sequencial Rigoroso: Garante que NUNCA haja 2 diálogos no mesmo milissegundo
+            for i in range(len(raw_dialogues)):
+                start = raw_dialogues[i]["start"]
+                end = raw_dialogues[i]["end"]
+                if i < len(raw_dialogues) - 1:
+                    next_s = raw_dialogues[i+1]["start"]
+                    if end > next_s:
+                        end = next_s
+                if end > start:
+                    w_start_str = _format_ass_time(start)
+                    w_end_str = _format_ass_time(end)
+                    events.append(f"Dialogue: 1,{w_start_str},{w_end_str},ViralShorts,,0,0,0,,{raw_dialogues[i]['text']}")
 
     with open(output_ass_path, "w", encoding="utf-8") as f:
         f.write(header + "\n".join(events))
@@ -124,11 +178,14 @@ def render_vertical_short(
         relative_words = []
         if subtitles_words:
             for w in subtitles_words:
-                if w["start"] >= start_sec and w["end"] <= end_sec:
+                w_start = float(w.get("start", 0))
+                w_end = float(w.get("end", 0))
+                # Captura todas as palavras que se sobrepõem ao trecho cortado
+                if w_end > start_sec and w_start < end_sec:
                     relative_words.append({
-                        "word": w["word"],
-                        "start": max(0.0, w["start"] - start_sec),
-                        "end": max(0.0, w["end"] - start_sec)
+                        "word": str(w.get("word", "")).strip(),
+                        "start": max(0.0, w_start - start_sec),
+                        "end": min(duration, max(0.05, w_end - start_sec))
                     })
         ass_path = output_path + ".temp.ass"
         create_ass_subtitles(

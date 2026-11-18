@@ -76,6 +76,9 @@ def translate_segments_to_pt(segments: list, start_sec: float, end_sec: float) -
         for i, w in enumerate(words):
             w_start = seg_start + (i / len(words)) * duration
             w_end = seg_start + ((i + 1) / len(words)) * duration
+            if translated_words and w_start < translated_words[-1]["end"]:
+                w_start = translated_words[-1]["end"]
+                w_end = max(w_start + 0.05, w_end)
             translated_words.append({
                 "word": w,
                 "start": round(w_start, 2),
