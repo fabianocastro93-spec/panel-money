@@ -31,10 +31,10 @@ if not exist "%CHROME_BIN%" set "CHROME_BIN=C:\Program Files (x86)\Google\Chrome
 if not exist "%CHROME_BIN%" set "CHROME_BIN=%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
 
 echo [*] Abrindo Painel Web e Redes Sociais no GOOGLE CHROME...
-echo     -> Painel Cortes AI:  http://localhost:5000
-echo     -> Instagram:         https://www.instagram.com/castro93c
-echo     -> TikTok:            https://www.tiktok.com/@castro93c
-echo     -> YouTube:           https://www.youtube.com
+echo     [-] Painel Cortes AI:  http://localhost:5000
+echo     [-] Instagram:         https://www.instagram.com/castro93c
+echo     [-] TikTok:            https://www.tiktok.com/@castro93c
+echo     [-] YouTube:           https://www.youtube.com
 echo.
 
 if exist "%CHROME_BIN%" (

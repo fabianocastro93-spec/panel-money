@@ -113,6 +113,10 @@ def render_vertical_short(
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     duration = end_sec - start_sec
+    # Regra estrita: Todo vídeo postado deve ter no mínimo 10 segundos
+    if duration < 10.0:
+        print(f"[*] Ajustando duração mínima de {duration:.1f}s para 10.0s (regra de retenção)")
+        duration = 10.0
     
     # 1. Preparar legendas se fornecidas
     ass_path = None

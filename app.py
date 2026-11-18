@@ -91,6 +91,20 @@ class TikTokSessionRequest(BaseModel):
 class AutoViralRequest(BaseModel):
     count: Optional[int] = 1
 
+class LiveClipProcessRequest(BaseModel):
+    clip_url: str
+    title: Optional[str] = None
+    streamer: Optional[str] = None
+    views: Optional[int] = 0
+    hook_title: Optional[str] = None
+    auto_upload: Optional[bool] = False
+    platforms: Optional[List[str]] = ["youtube", "instagram", "tiktok"]
+
+class LiveSniperRequest(BaseModel):
+    streamer: Optional[str] = None
+    game: Optional[str] = "Grand Theft Auto V"
+    auto_upload: Optional[bool] = True
+
 def add_log(msg: str):
     timestamp = time.strftime("%H:%M:%S")
     entry = f"[{timestamp}] {msg}"
@@ -456,6 +470,92 @@ def get_auto_viral_history():
         except Exception:
             pass
     return {"history": []}
+
+def run_live_clip_worker(req_data: dict):
+    global job_state
+    try:
+        job_state["status"] = "running"
+        job_state["progress"] = 10
+        job_state["logs"] = []
+        job_state["stage"] = "live_clipping"
+        clip_title = req_data.get("title") or "Clipe de Live"
+        add_log(f"📡 Radar de Lives: Baixando e processando clipe de '{req_data.get('streamer', 'Streamer')}' - {clip_title}...")
+        
+        from src.live_clipper import process_live_clip_to_short
+        job_state["progress"] = 35
+        res = process_live_clip_to_short(
+            clip_url=req_data["clip_url"],
+            title=req_data.get("title"),
+            streamer=req_data.get("streamer"),
+            views=req_data.get("views", 0),
+            hook_title=req_data.get("hook_title"),
+            auto_upload=req_data.get("auto_upload", False),
+            platforms=req_data.get("platforms", ["youtube", "instagram", "tiktok"])
+        )
+        job_state["progress"] = 100
+        job_state["status"] = "completed"
+        job_state["current_clips"] = [res["filename"]]
+        add_log(f"✨ Corte de Live 9:16 concluído com sucesso: {res['filename']} (Duração: {res['duration']:.1f}s)")
+        if req_data.get("auto_upload"):
+            add_log("🚀 Postagem automática nas redes sociais concluída!")
+    except Exception as e:
+        job_state["status"] = "error"
+        add_log(f"[!] Erro ao processar clipe da live: {str(e)}")
+
+def run_live_snipe_worker(streamer: Optional[str], game: str, auto_upload: bool):
+    global job_state
+    try:
+        job_state["status"] = "running"
+        job_state["progress"] = 10
+        job_state["logs"] = []
+        job_state["stage"] = "live_snipe"
+        add_log("⚡ Piloto Automático de Lives: Caçando o clipe mais viral da semana (mínimo 10 segundos)...")
+        
+        from src.live_clipper import run_live_sniper_best_clip
+        job_state["progress"] = 30
+        res = run_live_sniper_best_clip(
+            target_streamer=streamer,
+            game=game,
+            min_duration=10.0,
+            auto_upload=auto_upload
+        )
+        if res.get("status") == "success":
+            job_state["progress"] = 100
+            job_state["status"] = "completed"
+            c = res["clip"]
+            add_log(f"🔥 Sucesso! Clipe viral de {c['streamer']} ({c['view_count']} views, {c['duration']}s) renderizado e postado!")
+        else:
+            job_state["status"] = "completed"
+            add_log(f"ℹ️ {res.get('message', 'Nenhum clipe novo encontrado.')}")
+    except Exception as e:
+        job_state["status"] = "error"
+        add_log(f"[!] Erro no sniper de live: {str(e)}")
+
+@app.get("/api/live/clips")
+def list_live_clips(query: Optional[str] = "", min_duration: Optional[float] = 10.0, limit: Optional[int] = 15):
+    """Busca os clipes mais virais de lives (Twitch/YouTube) filtrando sempre por >= 10s."""
+    from src.live_clipper import search_all_live_clips
+    clips = search_all_live_clips(query_or_channel=query or "", min_duration=min_duration, limit=limit)
+    return {"status": "success", "total": len(clips), "clips": clips}
+
+@app.post("/api/live/process")
+def process_live_clip(background_tasks: BackgroundTasks, req: LiveClipProcessRequest):
+    global job_state
+    if job_state["status"] == "running":
+        raise HTTPException(status_code=400, detail="Já existe um processamento em andamento.")
+    background_tasks.add_task(run_live_clip_worker, req.dict())
+    return {"status": "started", "message": "Processamento do clipe de live iniciado!"}
+
+@app.post("/api/live/snipe_best")
+def trigger_live_snipe(background_tasks: BackgroundTasks, req: Optional[LiveSniperRequest] = None):
+    global job_state
+    if job_state["status"] == "running":
+        raise HTTPException(status_code=400, detail="Já existe um processamento em andamento.")
+    streamer = req.streamer if (req and req.streamer) else None
+    game = req.game if (req and req.game) else "Grand Theft Auto V"
+    auto_upload = req.auto_upload if (req and req.auto_upload is not None) else True
+    background_tasks.add_task(run_live_snipe_worker, streamer, game, auto_upload)
+    return {"status": "started", "message": "Piloto Automático de Lives iniciado! Localizando o melhor momento..."}
 
 @app.get("/api/clips")
 def list_clips():
