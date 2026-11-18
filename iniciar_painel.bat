@@ -30,20 +30,14 @@ set "CHROME_BIN=C:\Program Files\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME_BIN%" set "CHROME_BIN=C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME_BIN%" set "CHROME_BIN=%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
 
-echo [*] Abrindo Painel Web e Redes Sociais no GOOGLE CHROME...
+echo [*] Abrindo Painel Web no GOOGLE CHROME...
 echo     [-] Painel Cortes AI:  http://localhost:5000
-echo     [-] Instagram:         https://www.instagram.com/castro93c
-echo     [-] TikTok:            https://www.tiktok.com/@castro93c
-echo     [-] YouTube:           https://www.youtube.com
 echo.
 
 if exist "%CHROME_BIN%" (
-    start "" "%CHROME_BIN%" "http://localhost:5000" "https://www.instagram.com/castro93c" "https://www.tiktok.com/@castro93c" "https://www.youtube.com"
+    start "" "%CHROME_BIN%" "http://localhost:5000"
 ) else (
     start "" "http://localhost:5000"
-    start "" "https://www.instagram.com/castro93c"
-    start "" "https://www.tiktok.com/@castro93c"
-    start "" "https://www.youtube.com"
 )
 
 echo [*] Servidor Cortes AI Studio iniciando...
