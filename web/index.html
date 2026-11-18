@@ -379,13 +379,27 @@
             <input 
               type="text" 
               id="input-live-query" 
-              placeholder="Digite o streamer (ex: alanzoka, gaules, loud_coringa, casimito) ou jogo (Grand Theft Auto V)..." 
+              placeholder="Digite o streamer (ex: Paulinho o Loko, Coringa, Alanzoka) ou cole o link da live do YouTube / Twitch..." 
               class="w-full bg-darkBg border border-darkBorder rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
               onkeydown="if(event.key==='Enter') searchLiveClips()"
             >
           </div>
           <button onclick="searchLiveClips()" class="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow">
             <span>🔍</span> Rastrear Clipes
+          </button>
+        </div>
+
+        <!-- Filtro por Plataforma (Twitch e YouTube) -->
+        <div class="flex items-center gap-2 text-xs border-b border-darkBorder pb-3 flex-wrap">
+          <span class="text-slate-400 font-semibold mr-1">Plataforma:</span>
+          <button onclick="setLivePlatform('all')" id="plat-btn-all" class="px-3 py-1 rounded-lg bg-purple-600 text-white font-bold transition">
+            🌍 Todas (Twitch + YouTube)
+          </button>
+          <button onclick="setLivePlatform('twitch')" id="plat-btn-twitch" class="px-3 py-1 rounded-lg bg-darkBg text-slate-300 hover:text-white border border-darkBorder transition flex items-center gap-1">
+            🟣 Twitch
+          </button>
+          <button onclick="setLivePlatform('youtube')" id="plat-btn-youtube" class="px-3 py-1 rounded-lg bg-darkBg text-slate-300 hover:text-white border border-darkBorder transition flex items-center gap-1">
+            🔴 YouTube Live
           </button>
         </div>
 
@@ -744,6 +758,18 @@
       if (tab === 'system') loadSystemHealth();
     }
 
+    let currentLivePlatform = 'all';
+
+    function setLivePlatform(plat) {
+      currentLivePlatform = plat;
+      document.getElementById('plat-btn-all').className = plat === 'all' ? 'px-3 py-1 rounded-lg bg-purple-600 text-white font-bold transition' : 'px-3 py-1 rounded-lg bg-darkBg text-slate-300 hover:text-white border border-darkBorder transition';
+      document.getElementById('plat-btn-twitch').className = plat === 'twitch' ? 'px-3 py-1 rounded-lg bg-purple-600 text-white font-bold transition flex items-center gap-1' : 'px-3 py-1 rounded-lg bg-darkBg text-slate-300 hover:text-white border border-darkBorder transition flex items-center gap-1';
+      document.getElementById('plat-btn-youtube').className = plat === 'youtube' ? 'px-3 py-1 rounded-lg bg-red-600 text-white font-bold transition flex items-center gap-1' : 'px-3 py-1 rounded-lg bg-darkBg text-slate-300 hover:text-white border border-darkBorder transition flex items-center gap-1';
+      
+      const q = document.getElementById('input-live-query').value.trim();
+      loadLiveClips(q, plat);
+    }
+
     function quickSearchLive(query) {
       document.getElementById('input-live-query').value = query;
       searchLiveClips();
@@ -751,10 +777,10 @@
 
     function searchLiveClips() {
       const q = document.getElementById('input-live-query').value.trim();
-      loadLiveClips(q);
+      loadLiveClips(q, currentLivePlatform);
     }
 
-    async function loadLiveClips(query = '') {
+    async function loadLiveClips(query = '', platform = currentLivePlatform) {
       const grid = document.getElementById('live-clips-grid');
       const loader = document.getElementById('live-clips-loading');
       const empty = document.getElementById('live-clips-empty');
@@ -764,7 +790,7 @@
       empty.classList.add('hidden');
 
       try {
-        const url = API_BASE + '/api/live/clips?query=' + encodeURIComponent(query) + '&min_duration=10.0&limit=15';
+        const url = API_BASE + '/api/live/clips?query=' + encodeURIComponent(query) + '&min_duration=10.0&limit=15&platform=' + encodeURIComponent(platform);
         const res = await fetch(url);
         const data = await res.json();
         loader.classList.add('hidden');
@@ -781,11 +807,11 @@
               <span class="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold bg-black/80 text-white backdrop-blur flex items-center gap-1">
                 ⏱️ ${Math.round(c.duration)}s
               </span>
-              <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-600/90 text-white backdrop-blur flex items-center gap-1">
+              <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold ${c.platform === 'youtube' ? 'bg-red-600/90' : 'bg-purple-600/90'} text-white backdrop-blur flex items-center gap-1">
                 👁️ ${Number(c.view_count).toLocaleString('pt-BR')} views
               </span>
-              <span class="absolute top-2 left-2 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/30 text-purple-300 border border-purple-500/40 backdrop-blur">
-                🔴 ${escapeHtml(c.streamer)}
+              <span class="absolute top-2 left-2 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${c.platform === 'youtube' ? 'bg-red-600/90 text-white' : 'bg-purple-600/90 text-white'} backdrop-blur flex items-center gap-1 shadow">
+                ${c.platform === 'youtube' ? '🔴 YouTube' : '🟣 Twitch'} &bull; ${escapeHtml(c.streamer)}
               </span>
             </div>
 

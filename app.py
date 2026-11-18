@@ -532,10 +532,10 @@ def run_live_snipe_worker(streamer: Optional[str], game: str, auto_upload: bool)
         add_log(f"[!] Erro no sniper de live: {str(e)}")
 
 @app.get("/api/live/clips")
-def list_live_clips(query: Optional[str] = "", min_duration: Optional[float] = 10.0, limit: Optional[int] = 15):
-    """Busca os clipes mais virais de lives (Twitch/YouTube) filtrando sempre por >= 10s."""
+def list_live_clips(query: Optional[str] = "", min_duration: Optional[float] = 10.0, limit: Optional[int] = 15, platform: Optional[str] = "all"):
+    """Busca os clipes mais virais de lives (Twitch e YouTube) filtrando sempre por >= 10s."""
     from src.live_clipper import search_all_live_clips
-    clips = search_all_live_clips(query_or_channel=query or "", min_duration=min_duration, limit=limit)
+    clips = search_all_live_clips(query_or_channel=query or "", min_duration=min_duration, limit=limit, platform=platform or "all")
     return {"status": "success", "total": len(clips), "clips": clips}
 
 @app.post("/api/live/process")

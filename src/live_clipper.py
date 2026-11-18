@@ -261,46 +261,117 @@ def get_twitch_game_clips(
     return results
 
 
+def search_youtube_live_clips(
+    query: str,
+    limit: int = 10,
+    min_duration: float = MIN_DURATION_SECONDS,
+    max_duration: float = 300.0
+) -> List[Dict]:
+    """
+    Busca cortes e clipes de lives recentes no YouTube de streamers como Paulinho o Loko,
+    Coringa e GTA RP. Filtra vídeos com duração >= min_duration (10s) e <= max_duration.
+    """
+    clean = query.strip()
+    if not clean:
+        clean = "paulinho o loko gta rp live"
+        
+    ytdlp_bin = str(BASE_DIR / "venv" / "Scripts" / "yt-dlp.exe")
+    if not os.path.exists(ytdlp_bin):
+        ytdlp_bin = "yt-dlp"
+
+    cmd = [
+        ytdlp_bin,
+        "--dump-json",
+        "--flat-playlist",
+        "--playlist-items", f"1-{limit * 2}",
+        f"ytsearch{limit * 2}:{clean} live clipes shorts"
+    ]
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        clips = []
+        for line in res.stdout.strip().split("\n"):
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+                dur = d.get("duration")
+                if dur is None or dur < min_duration or dur > max_duration:
+                    continue
+                title = d.get("title", "")
+                views = int(d.get("view_count") or 0)
+                url = f"https://www.youtube.com/watch?v={d.get('id')}"
+                thumb = d.get("thumbnail") or f"https://i.ytimg.com/vi/{d.get('id')}/hqdefault.jpg"
+                channel = d.get("uploader") or d.get("channel") or "YouTube Live"
+                
+                clips.append({
+                    "id": d.get("id"),
+                    "slug": d.get("id"),
+                    "url": url,
+                    "title": title,
+                    "streamer": channel,
+                    "streamer_login": channel.lower().replace(" ", ""),
+                    "view_count": views,
+                    "duration": float(dur),
+                    "thumbnail": thumb,
+                    "platform": "youtube"
+                })
+                if len(clips) >= limit:
+                    break
+            except Exception:
+                pass
+        return clips
+    except Exception as e:
+        print(f"[!] Erro ao buscar clipes no YouTube: {e}")
+        return []
+
 def search_all_live_clips(
     query_or_channel: str = "",
     min_duration: float = MIN_DURATION_SECONDS,
-    limit: int = 15
+    limit: int = 15,
+    platform: str = "all"
 ) -> List[Dict]:
     """
-    Mecanismo Unificado: Se passar o nome de um streamer, busca do canal.
-    Se estiver vazio, busca dos maiores streamers da atualidade e de GTA.
+    Mecanismo Unificado (Twitch + YouTube Live):
+    Busca em ambas as plataformas simultaneamente, aplicando a regra estrita de duração
+    mínima de 10s e ordenando pelo maior número de visualizações.
     """
     clean = query_or_channel.strip()
-    if clean:
-        # Tenta como canal primeiro
-        clips = get_twitch_channel_clips(clean, limit=limit, min_duration=min_duration)
-        if clips:
-            return clips
-        # Tenta como jogo/categoria
-        clips = get_twitch_game_clips(clean, limit=limit, min_duration=min_duration)
-        if clips:
-            return clips
-            
-    # Busca global automática nos streamers de ponta
     all_clips = []
     seen_ids = set()
     
-    # 1. Clipes de GTA V (jogadores de RP e lives épicas)
-    gta_clips = get_twitch_game_clips("Grand Theft Auto V", limit=10, min_duration=min_duration)
-    for c in gta_clips:
-        if c["id"] not in seen_ids:
-            seen_ids.add(c["id"])
-            all_clips.append(c)
-            
-    # 2. Clipes dos streamers cadastrados
-    for s in DEFAULT_STREAMERS[:4]:
-        st_clips = get_twitch_channel_clips(s, limit=5, min_duration=min_duration)
-        for c in st_clips:
+    # 1. Busca na Twitch
+    if platform in ["all", "twitch"]:
+        if clean:
+            tw_clips = get_twitch_channel_clips(clean, limit=limit, min_duration=min_duration)
+            if not tw_clips:
+                tw_clips = get_twitch_game_clips(clean, limit=limit, min_duration=min_duration)
+            for c in tw_clips:
+                if c["id"] not in seen_ids:
+                    seen_ids.add(c["id"])
+                    all_clips.append(c)
+        else:
+            gta_clips = get_twitch_game_clips("Grand Theft Auto V", limit=8, min_duration=min_duration)
+            for c in gta_clips:
+                if c["id"] not in seen_ids:
+                    seen_ids.add(c["id"])
+                    all_clips.append(c)
+            for s in DEFAULT_STREAMERS[:3]:
+                st_clips = get_twitch_channel_clips(s, limit=4, min_duration=min_duration)
+                for c in st_clips:
+                    if c["id"] not in seen_ids:
+                        seen_ids.add(c["id"])
+                        all_clips.append(c)
+
+    # 2. Busca no YouTube (Lives, Clipes e Momentos)
+    if platform in ["all", "youtube"]:
+        yt_search_query = clean if clean else "paulinho o loko gta rp"
+        yt_clips = search_youtube_live_clips(yt_search_query, limit=10, min_duration=min_duration)
+        for c in yt_clips:
             if c["id"] not in seen_ids:
                 seen_ids.add(c["id"])
                 all_clips.append(c)
                 
-    # Ordena por número absoluto de visualizações
+    # Ordena pelo maior número de visualizações
     all_clips.sort(key=lambda x: x["view_count"], reverse=True)
     return all_clips[:limit]
 
@@ -406,13 +477,49 @@ def process_live_clip_to_short(
             
     final_output_path = OUTPUT_DIR / f"{out_base}.mp4"
     
-    # 4. Renderização Vertical 9:16
-    print(f"[*] Renderizando clipe da live em 9:16 vertical (Duração: {real_duration:.1f}s)...")
+    # 4. Detecção de Destaque e Legendas
+    start_sec = 0.0
+    end_sec = real_duration
+    subtitles_words = None
+    
+    if real_duration > 180.0:
+        print(f"[*] Transmissão longa de live do YouTube/Twitch ({real_duration:.1f}s). Detectando o momento de ápice com IA...")
+        try:
+            from src.transcriber import transcribe_video
+            from src.highlight_detector import detect_highlights
+            from src.dubber import translate_segments_to_pt
+            
+            transcript = transcribe_video(str(video_path), model_size="base")
+            highlights = detect_highlights(transcript, max_clips=1, min_sec=25, max_sec=50)
+            if highlights:
+                start_sec = highlights[0]["start"]
+                end_sec = highlights[0]["end"]
+                subtitles_words = translate_segments_to_pt(transcript.get("segments", []), start_sec, end_sec)
+            else:
+                start_sec = 60.0
+                end_sec = min(real_duration, 100.0)
+        except Exception as e:
+            print(f"[!] Erro ao detectar destaque em live longa: {e}")
+            start_sec = 60.0
+            end_sec = min(real_duration, 100.0)
+    else:
+        # Gera legendas para o clipe curto usando Whisper
+        try:
+            from src.transcriber import transcribe_video
+            from src.dubber import translate_segments_to_pt
+            transcript = transcribe_video(str(video_path), model_size="base")
+            subtitles_words = translate_segments_to_pt(transcript.get("segments", []), 0.0, real_duration)
+        except Exception:
+            subtitles_words = None
+    
+    # 5. Renderização Vertical 9:16
+    print(f"[*] Renderizando clipe da live em 9:16 vertical (Trecho: {start_sec:.1f}s a {end_sec:.1f}s)...")
     render_vertical_short(
         source_video_path=str(video_path),
-        start_sec=0.0,
-        end_sec=real_duration,
+        start_sec=start_sec,
+        end_sec=end_sec,
         output_path=str(final_output_path),
+        subtitles_words=subtitles_words,
         hook_title=final_hook,
         brand_tag=brand_tag
     )
