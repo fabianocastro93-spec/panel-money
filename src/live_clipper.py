@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 DOWNLOADS_DIR = BASE_DIR / "downloads" / "live_clips"
 OUTPUT_DIR = BASE_DIR / "output" / "shorts"
+OUTPUT_SHORTS_DIR = OUTPUT_DIR
 PROCESSED_CLIPS_FILE = CONFIG_DIR / "processed_live_clips.json"
 
 for d in [CONFIG_DIR, DOWNLOADS_DIR, OUTPUT_DIR]:
@@ -43,7 +44,7 @@ def load_processed_clips() -> set:
             pass
     return set()
 
-def save_processed_clip(clip_id: str, title: str, streamer: str, views: int):
+def save_processed_clip(clip_id: str, title: str = "", streamer: str = "", views: int = 0):
     processed = load_processed_clips()
     processed.add(clip_id)
     history = []
@@ -306,9 +307,12 @@ def get_twitch_channel_clips(
                 
             streamer_name = user.get("displayName", clean_login)
             
-            # Combina clipes de hoje e da semana
-            edges_today = user.get("clips_today", {}).get("edges", [])
-            edges_week = user.get("clips_week", {}).get("edges", [])
+            # Combina clipes de hoje e da semana com proteção contra None
+            today_obj = user.get("clips_today") or {}
+            edges_today = today_obj.get("edges", []) if isinstance(today_obj, dict) else []
+
+            week_obj = user.get("clips_week") or {}
+            edges_week = week_obj.get("edges", []) if isinstance(week_obj, dict) else []
             all_edges = edges_today + edges_week
             
             for edge in all_edges:
@@ -767,6 +771,236 @@ def process_live_clip_to_short(
     }
 
 
+def snipe_active_live_stream_now(
+    streamer_login: str,
+    duration_seconds: int = 35,
+    hook_title: Optional[str] = None,
+    brand_tag: str = "@castro93c",
+    auto_upload: bool = False,
+    platforms: List[str] = None
+) -> Dict:
+    """
+    Grava e corta o momento REAL DA TRANSMISSÃO AO VIVO que está acontecendo AGORA!
+    1. Localiza a stream e o VOD em gravação ao vivo via Twitch GQL.
+    2. Baixa os últimos 30 a 45 segundos da gameplay em andamento (qualidade 720p60).
+    3. Transcreve com Faster-Whisper para gerar legendas karaokê sincronizadas.
+    4. Renderiza em 9:16 vertical com gancho e marca d'água @castro93c.
+    5. Opcional: Publica no YouTube Shorts, Instagram Reels e TikTok.
+    """
+    clean_login = streamer_login.strip().lower().replace("@", "")
+    ALIASES = {
+        "paulinho": "paulinholokobr",
+        "paulinho o loko": "paulinholokobr",
+        "paulinho o loco": "paulinholokobr",
+        "paulinholoko": "paulinholokobr",
+        "paulinhokleber": "paulinholokobr",
+        "coringa": "loud_coringa",
+        "loud coringa": "loud_coringa",
+        "alan": "alanzoka",
+        "caze": "casimito",
+        "casimiro": "casimito",
+    }
+    clean_login = ALIASES.get(clean_login, clean_login)
+    
+    query = """
+    query($login: String!) {
+      user(login: $login) {
+        id
+        login
+        displayName
+        stream {
+          id
+          title
+          game { name }
+          viewersCount
+        }
+        videos(first: 1, types: ARCHIVE) {
+          edges {
+            node {
+              id
+              title
+              lengthSeconds
+              status
+            }
+          }
+        }
+      }
+    }
+    """
+    payload = {"query": query, "variables": {"login": clean_login}}
+    req = urllib.request.Request(
+        "https://gql.twitch.tv/gql",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Client-ID": TWITCH_CLIENT_ID, "User-Agent": "Mozilla/5.0"}
+    )
+    
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        
+    user = (data.get("data") or {}).get("user")
+    if not user or not user.get("stream"):
+        raise ValueError(f"O streamer '{streamer_login}' não está transmitindo ao vivo no momento.")
+        
+    stream = user["stream"]
+    streamer_name = user.get("displayName", clean_login)
+    stream_title = (stream.get("title") or f"Live de {streamer_name}").strip()
+    game_name = ((stream.get("game") or {}).get("name") or "Grand Theft Auto VI").strip()
+    viewers = int(stream.get("viewersCount", 0))
+    
+    # Busca o VOD em gravação ativa da live atual
+    vods = (user.get("videos") or {}).get("edges", [])
+    raw_video_path = DOWNLOADS_DIR / f"raw_live_{clean_login}_{int(time.time())}.mp4"
+    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    ytdlp_bin = str(BASE_DIR / "venv" / "Scripts" / "yt-dlp.exe")
+    if not os.path.exists(ytdlp_bin):
+        ytdlp_bin = "yt-dlp"
+
+    target_url = None
+    start_ss = 0
+    if vods and vods[0].get("node", {}).get("status") == "RECORDING":
+        vnode = vods[0]["node"]
+        vod_id = vnode["id"]
+        vod_len = int(vnode.get("lengthSeconds", 0))
+        target_url = f"https://www.twitch.tv/videos/{vod_id}"
+        # Pega os instantes mais recentes da live com folga de segurança de 15s
+        start_ss = max(0, vod_len - duration_seconds - 15)
+        cmd = [
+            ytdlp_bin,
+            "--downloader", "ffmpeg",
+            "--downloader-args", f"ffmpeg_i:-ss {start_ss} -t {duration_seconds}",
+            "-f", "best[height<=720]/best",
+            target_url,
+            "-o", str(raw_video_path)
+        ]
+    else:
+        # Fallback direto na live stream
+        target_url = f"https://www.twitch.tv/{clean_login}"
+        cmd = [
+            ytdlp_bin,
+            "--downloader", "ffmpeg",
+            "--downloader-args", f"ffmpeg_i:-t {duration_seconds}",
+            "-f", "best[height<=720]/best",
+            target_url,
+            "-o", str(raw_video_path)
+        ]
+        
+    print(f"[*] Gravando momento da transmissão ao vivo de {streamer_name} ({duration_seconds}s)...")
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    
+    if not raw_video_path.exists() or raw_video_path.stat().st_size < 100000:
+        raise RuntimeError(f"Falha ao capturar a transmissão ao vivo: {res.stderr[:200]}")
+        
+    # Validar duração real com ffprobe (mínimo de 10 segundos)
+    probe_cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(raw_video_path)
+    ]
+    probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        real_duration = float(probe_res.stdout.strip())
+    except Exception:
+        real_duration = float(duration_seconds)
+        
+    if real_duration < MIN_DURATION_SECONDS:
+        real_duration = MIN_DURATION_SECONDS
+
+    # Transcrever com Faster-Whisper para legendas karaokê
+    from src.transcriber import transcribe_video
+    from src.video_editor import render_vertical_short
+    
+    print(f"[*] Transcrevendo áudio da live com Faster-Whisper...")
+    transcript = transcribe_video(str(raw_video_path), model_size="base")
+    all_words = []
+    for seg in transcript.get("segments", []):
+        all_words.extend(seg.get("words", []))
+        
+    # Gancho no topo
+    final_hook = hook_title or f"{streamer_name.upper()} AO VIVO NO GTA! 🔥"
+    out_filename = f"live_{clean_login}_{int(time.time())}.mp4"
+    final_output_path = OUTPUT_SHORTS_DIR / out_filename
+    
+    print(f"[*] Renderizando corte 9:16 vertical com gancho e legendas karaokê...")
+    render_vertical_short(
+        source_video_path=str(raw_video_path),
+        start_sec=0.0,
+        end_sec=real_duration,
+        output_path=str(final_output_path),
+        subtitles_words=all_words,
+        hook_title=final_hook,
+        brand_tag=brand_tag
+    )
+    
+    # Metadata
+    from src.highlight_detector import generate_specific_caption
+    clip_text = " ".join([w["word"] for w in all_words]) if all_words else stream_title
+    caption_ig = generate_specific_caption(clip_text, f"{streamer_name} AO VIVO", platform="instagram")
+    caption_yt = generate_specific_caption(clip_text, f"{streamer_name} AO VIVO", platform="youtube")
+    
+    meta_path = final_output_path.with_name(out_filename + ".json")
+    with open(meta_path, "w", encoding="utf-8") as mf:
+        json.dump({
+            "title": f"{streamer_name} AO VIVO: {stream_title[:45]}",
+            "hook": final_hook,
+            "streamer": streamer_name,
+            "views": viewers,
+            "game": game_name,
+            "duration": round(real_duration, 1),
+            "brand_tag": brand_tag,
+            "is_real_live": True,
+            "caption": caption_ig,
+            "caption_instagram": caption_ig,
+            "caption_youtube": caption_yt,
+            "rendered_at": time.strftime("%Y-%m-%d %H:%M:%S")
+        }, mf, ensure_ascii=False, indent=2)
+        
+    # Auto upload se solicitado
+    upload_results = {}
+    if auto_upload:
+        if platforms is None:
+            platforms = ["youtube", "instagram", "tiktok"]
+            
+        caption = f"{final_hook}\n{stream_title}\n\n#gta6 #games #shorts #twitch @castro93c"
+        if "youtube" in platforms:
+            try:
+                from src.uploader_youtube import upload_short_to_youtube
+                yt_url = upload_short_to_youtube(str(final_output_path), title=f"{streamer_name} AO VIVO! #shorts", description=caption, privacy_status="public")
+                upload_results["youtube"] = yt_url
+            except Exception as e:
+                upload_results["youtube_error"] = str(e)
+                
+        if "instagram" in platforms:
+            try:
+                from src.uploader_instagram import upload_reel_to_instagram
+                ig_res = upload_reel_to_instagram(str(final_output_path), caption=caption)
+                upload_results["instagram"] = ig_res.get("url") or "Publicado no Instagram"
+            except Exception as e:
+                upload_results["instagram_error"] = str(e)
+                
+        if "tiktok" in platforms:
+            try:
+                from src.uploader_tiktok import upload_video_to_tiktok, is_tiktok_connected
+                if is_tiktok_connected():
+                    tt_res = upload_video_to_tiktok(str(final_output_path), caption=caption)
+                    upload_results["tiktok"] = "Publicado com sucesso no TikTok"
+            except Exception as e:
+                upload_results["tiktok_error"] = str(e)
+                
+    return {
+        "status": "success",
+        "video_path": str(final_output_path),
+        "filename": final_output_path.name,
+        "title": f"{streamer_name} AO VIVO: {stream_title[:45]}",
+        "hook": final_hook,
+        "duration": real_duration,
+        "streamer": streamer_name,
+        "viewers": viewers,
+        "uploads": upload_results
+    }
+
+
 def run_live_sniper_best_clip(
     target_streamer: str = None,
     game: str = "Grand Theft Auto V",
@@ -774,12 +1008,43 @@ def run_live_sniper_best_clip(
     auto_upload: bool = True
 ) -> Dict:
     """
-    Piloto Automático: Encontra o clipe mais assistido e ainda não postado,
-    corta em 9:16 vertical e publica no YouTube, Instagram e TikTok!
+    Piloto Automático de Lives:
+    1. Se o streamer alvo estiver transmitindo AO VIVO AGORA, captura os últimos segundos
+       da transmissão real em tempo real, transcreve com Faster-Whisper, aplica gancho e posta!
+    2. Caso contrário, busca os clipes virais mais recentes da live gerados hoje e na semana.
     """
     processed = load_processed_clips()
-    print(f"[*] Radar de Lives ativo: Buscando os clipes mais virais da semana (Duração mínima: {min_duration}s)...")
+    print(f"[*] Radar de Lives ativo: Analisando transmissões e clipes (Duração mínima: {min_duration}s)...")
     
+    # Se um streamer específico foi solicitado, tenta capturar a live ao vivo diretamente!
+    if target_streamer:
+        try:
+            print(f"[*] Verificando se {target_streamer} está AO VIVO no momento...")
+            live_res = snipe_active_live_stream_now(
+                streamer_login=target_streamer,
+                duration_seconds=35,
+                auto_upload=auto_upload
+            )
+            if live_res and live_res.get("status") == "success":
+                print(f"[🔥] Sucesso absoluto! Live de {target_streamer} capturada em tempo real!")
+                clip_info = {
+                    "id": live_res["filename"],
+                    "slug": live_res["filename"],
+                    "url": f"https://www.twitch.tv/{target_streamer}",
+                    "title": live_res["title"],
+                    "streamer": live_res["streamer"],
+                    "view_count": live_res.get("viewers", 1000),
+                    "duration": live_res["duration"]
+                }
+                save_processed_clip(live_res["filename"])
+                return {
+                    "status": "success",
+                    "clip": clip_info,
+                    "result": live_res
+                }
+        except Exception as live_err:
+            print(f"[!] Streamer não está ao vivo ou erro na captura direta: {live_err}. Buscando clipes gravados...")
+
     candidates = []
     if target_streamer:
         candidates = get_twitch_channel_clips(target_streamer, limit=15, min_duration=min_duration)

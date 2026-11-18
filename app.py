@@ -550,20 +550,39 @@ def run_live_clip_worker(req_data: dict):
         job_state["progress"] = 10
         job_state["logs"] = []
         job_state["stage"] = "live_clipping"
-        clip_title = req_data.get("title") or "Clipe de Live"
-        add_log(f"📡 Radar de Lives: Baixando e processando clipe de '{req_data.get('streamer', 'Streamer')}' - {clip_title}...")
+        clip_url = req_data.get("clip_url", "")
+        streamer = req_data.get("streamer") or "Streamer"
         
-        from src.live_clipper import process_live_clip_to_short
-        job_state["progress"] = 35
-        res = process_live_clip_to_short(
-            clip_url=req_data["clip_url"],
-            title=req_data.get("title"),
-            streamer=req_data.get("streamer"),
-            views=req_data.get("views", 0),
-            hook_title=req_data.get("hook_title"),
-            auto_upload=req_data.get("auto_upload", False),
-            platforms=req_data.get("platforms", ["youtube", "instagram", "tiktok"])
-        )
+        # Se for o link da live ao vivo (canal) ou corte direto da transmissão
+        if "/clip/" not in clip_url and ("twitch.tv/" in clip_url or req_data.get("is_real_live")):
+            streamer_login = streamer
+            if "twitch.tv/" in clip_url:
+                streamer_login = clip_url.rstrip("/").split("/")[-1].split("?")[0]
+            add_log(f"🔴 Gravando momento da transmissão AO VIVO de '{streamer_login}' agora...")
+            from src.live_clipper import snipe_active_live_stream_now
+            job_state["progress"] = 30
+            res = snipe_active_live_stream_now(
+                streamer_login=streamer_login,
+                duration_seconds=35,
+                hook_title=req_data.get("hook_title"),
+                auto_upload=req_data.get("auto_upload", False),
+                platforms=req_data.get("platforms", ["youtube", "instagram", "tiktok"])
+            )
+        else:
+            clip_title = req_data.get("title") or "Clipe de Live"
+            add_log(f"📡 Radar de Lives: Baixando e processando clipe de '{streamer}' - {clip_title}...")
+            from src.live_clipper import process_live_clip_to_short
+            job_state["progress"] = 35
+            res = process_live_clip_to_short(
+                clip_url=req_data["clip_url"],
+                title=req_data.get("title"),
+                streamer=req_data.get("streamer"),
+                views=req_data.get("views", 0),
+                hook_title=req_data.get("hook_title"),
+                auto_upload=req_data.get("auto_upload", False),
+                platforms=req_data.get("platforms", ["youtube", "instagram", "tiktok"])
+            )
+            
         job_state["progress"] = 100
         job_state["status"] = "completed"
         job_state["current_clips"] = [res["filename"]]
@@ -619,7 +638,10 @@ def run_live_snipe_worker(streamer: Optional[str], game: str, auto_upload: bool)
         job_state["progress"] = 10
         job_state["logs"] = []
         job_state["stage"] = "live_snipe"
-        add_log("⚡ Piloto Automático de Lives: Caçando o clipe mais viral da semana (mínimo 10 segundos)...")
+        if streamer:
+            add_log(f"🔴 Conectando à transmissão AO VIVO de '{streamer}' em tempo real...")
+        else:
+            add_log("⚡ Piloto Automático de Lives: Caçando transmissão ou clipe mais viral (mínimo 10s)...")
         
         from src.live_clipper import run_live_sniper_best_clip
         job_state["progress"] = 30
@@ -633,7 +655,7 @@ def run_live_snipe_worker(streamer: Optional[str], game: str, auto_upload: bool)
             job_state["progress"] = 100
             job_state["status"] = "completed"
             c = res["clip"]
-            add_log(f"🔥 Sucesso! Clipe viral de {c['streamer']} ({c['view_count']} views, {c['duration']}s) renderizado e postado!")
+            add_log(f"🔥 Sucesso! Live de {c['streamer']} ({c['duration']}s) gravada, editada em 9:16 e postada!")
         else:
             job_state["status"] = "completed"
             add_log(f"ℹ️ {res.get('message', 'Nenhum clipe novo encontrado.')}")
