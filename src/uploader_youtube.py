@@ -97,4 +97,6 @@ def upload_short_to_youtube(
         err_msg = str(e)
         if "youtubeSignupRequired" in err_msg:
             raise Exception("Seu canal no YouTube ainda não foi criado nessa conta Google. Acesse https://www.youtube.com/create_channel no navegador para ativar seu canal e tente novamente!")
+        if "uploadLimitExceeded" in err_msg:
+            raise Exception("Limite diário de uploads do YouTube atingido! O YouTube impõe uma cota diária por canal (reinicia a cada 24 horas). Ative os 'Recursos Avançados' no YouTube Studio (studio.youtube.com) para aumentar seu limite, ou publique agora no Instagram Reels e TikTok!")
         raise
