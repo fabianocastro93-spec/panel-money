@@ -55,7 +55,8 @@ app.mount("/videos", StaticFiles(directory=str(OUTPUT_SHORTS_DIR)), name="videos
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 class ProcessRequest(BaseModel):
-    source: str
+    source: Optional[str] = None
+    sources: Optional[List[str]] = None
     enable_dubbing: bool = False
     translate_subtitles: bool = True
     voice: str = "pt-BR-AntonioNeural"
@@ -105,6 +106,9 @@ class LiveSniperRequest(BaseModel):
     game: Optional[str] = "Grand Theft Auto V"
     auto_upload: Optional[bool] = True
 
+class LiveBatchProcessRequest(BaseModel):
+    clips: List[LiveClipProcessRequest]
+
 def add_log(msg: str):
     timestamp = time.strftime("%H:%M:%S")
     entry = f"[{timestamp}] {msg}"
@@ -116,153 +120,221 @@ def run_pipeline_worker(req: ProcessRequest):
     global job_state
     try:
         job_state["status"] = "running"
-        job_state["progress"] = 5
+        job_state["progress"] = 3
         job_state["logs"] = []
         job_state["current_clips"] = []
         
         from src.downloader import download_video
         from src.transcriber import transcribe_video
-        from src.highlight_detector import detect_highlights
+        from src.highlight_detector import detect_highlights, generate_specific_caption
         from src.dubber import dub_clip, translate_text, translate_segments_to_pt
         from src.video_editor import render_vertical_short
 
-        # 1. Download
-        job_state["stage"] = "download"
-        job_state["progress"] = 15
-        add_log(f"Passo 1/5: Baixando vídeo: {req.source}")
-        video_info = download_video(req.source, output_dir=str(DOWNLOADS_DIR))
-        video_path = video_info["filepath"]
-        add_log(f"[OK] Download concluído: {Path(video_path).name}")
+        # 0. Extrair todas as fontes (única ou múltiplas em lote)
+        raw_sources = []
+        if req.sources:
+            raw_sources.extend(req.sources)
+        if req.source:
+            for part in req.source.replace(";", "\n").replace(",", "\n").split("\n"):
+                part = part.strip()
+                if part:
+                    raw_sources.append(part)
 
-        # 2. Transcrição
-        job_state["stage"] = "transcribe"
-        job_state["progress"] = 35
-        add_log("Passo 2/5: Transcrevendo áudio com Faster-Whisper (palavra por palavra)...")
-        transcript = transcribe_video(video_path, model_size="base")
-        all_words = []
-        for seg in transcript.get("segments", []):
-            all_words.extend(seg.get("words", []))
-        detected_lang = transcript.get("language", "pt")
-        add_log(f"[OK] Transcrição concluída ({len(all_words)} palavras, idioma detectado: {detected_lang}).")
+        # Deduplicar preservando a ordem original
+        seen = set()
+        sources_list = []
+        for s in raw_sources:
+            clean_s = s.strip().strip('"').strip("'")
+            if clean_s and clean_s not in seen:
+                seen.add(clean_s)
+                sources_list.append(clean_s)
 
-        # 3. Detecção de Ganchos Virais
-        job_state["stage"] = "detect"
-        job_state["progress"] = 55
-        add_log("Passo 3/5: Analisando momentos virais com Inteligência Artificial...")
-        clips = detect_highlights(transcript, max_clips=req.max_clips)
-        add_log(f"[OK] {len(clips)} momentos virais identificados pela IA!")
+        if not sources_list:
+            raise ValueError("Nenhum vídeo ou link informado para análise.")
 
-        # 4. Processamento, Dublagem e Renderização 9:16
-        job_state["stage"] = "render"
-        step_progress = 35 / max(len(clips), 1)
-        should_translate = req.translate_subtitles or req.enable_dubbing or (detected_lang != "pt")
-        
-        for idx, clip in enumerate(clips, 1):
-            clean_title = "".join(c for c in clip.get("title", f"corte_{idx}") if c.isalnum() or c in (' ', '_', '-')).strip()
-            out_filename = f"{int(time.time())}_{idx:02d}_{clean_title[:25]}.mp4"
-            out_path = str(OUTPUT_SHORTS_DIR / out_filename)
-            
-            # Preparar legendas (traduzir para português se necessário)
-            if should_translate and detected_lang != "pt":
-                add_log(f"Traduzindo legendas do corte #{idx} para Português...")
-                clip_words = translate_segments_to_pt(transcript.get("segments", []), clip["start"], clip["end"])
-            else:
-                clip_words = [w for w in all_words if clip["start"] <= w["start"] <= clip["end"]]
+        total_videos = len(sources_list)
+        if total_videos > 1:
+            add_log(f"📚 FILA EM LOTE ATIVADA: {total_videos} vídeos para análise e corte sequencial!")
+        else:
+            add_log(f"🎬 Iniciando análise de 1 vídeo...")
 
-            dubbed_audio_path = None
-            if req.enable_dubbing:
-                job_state["stage"] = "dub"
-                add_log(f"Passo 4/5: Dublando corte #{idx} para Português...")
-                clip_text = " ".join([w["word"] for w in clip_words])
-                if clip_text:
-                    dubbed_audio_path = str(OUTPUT_DUBBED_DIR / f"dub_{idx}.mp3")
-                    temp_orig_audio = str(OUTPUT_DUBBED_DIR / f"orig_{idx}.mp3")
-                    os.system(f"ffmpeg -y -ss {clip['start']} -t {clip['end']-clip['start']} -i \"{video_path}\" -vn -ar 44100 -ac 2 \"{temp_orig_audio}\" >nul 2>&1")
-                    dub_clip(temp_orig_audio, clip_text, dubbed_audio_path, voice=req.voice)
-                    if os.path.exists(temp_orig_audio):
-                        os.remove(temp_orig_audio)
-            
-            job_state["stage"] = "render"
-            add_log(f"Passo 5/5: Renderizando corte #{idx} em 9:16 vertical com gancho no topo e legendas karaokê...")
-            c_title = clip.get("title", "ESSE DETALHE NO GTA 6 NINGUÉM VIU! 😱")
-            render_vertical_short(
-                source_video_path=video_path,
-                start_sec=clip["start"],
-                end_sec=clip["end"],
-                output_path=out_path,
-                subtitles_words=clip_words,
-                dubbed_audio_path=dubbed_audio_path,
-                hook_title=c_title,
-                brand_tag="@castro93c"
-            )
-            
-            # Salvar metadados com títulos virais sugeridos e legenda específica
-            from src.highlight_detector import generate_specific_caption
-            clip_text = " ".join([w["word"] for w in clip_words]) if clip_words else clip.get("title", "")
-            
-            suggested = clip.get("suggested_titles") or [
-                clip.get("title", "ESSE DETALHE NO GTA 6 NINGUÉM VIU! 😱"),
-                "A FÍSICA DO GTA 6 VAI SER INSANA! 🔥",
-                "O SEGREDO DA ROCKSTAR NO GTA VI! 🎮"
-            ]
-            caption_ig = generate_specific_caption(clip_text, clip.get("title", suggested[0]), platform="instagram")
-            caption_yt = generate_specific_caption(clip_text, clip.get("title", suggested[0]), platform="youtube")
-            
-            meta_path = Path(out_path).with_name(out_filename + ".json")
+        all_generated_clips = []
+
+        for vid_idx, current_source in enumerate(sources_list, 1):
+            vid_prefix = f"[{vid_idx}/{total_videos}]" if total_videos > 1 else ""
+            add_log(f"--------------------------------------------------")
+            add_log(f"▶️ {vid_prefix} Analisando fonte: {current_source}")
+            add_log(f"--------------------------------------------------")
+
+            base_prog = int(((vid_idx - 1) / total_videos) * 90)
+            video_slice = 90.0 / total_videos
+
             try:
-                with open(meta_path, "w", encoding="utf-8") as mf:
-                    json.dump({
+                # 1. Download
+                job_state["stage"] = "download"
+                job_state["progress"] = base_prog + int(video_slice * 0.15)
+                add_log(f"{vid_prefix} Passo 1/5: Baixando/carregando vídeo: {current_source}")
+                video_info = download_video(current_source, output_dir=str(DOWNLOADS_DIR))
+                video_path = video_info["filepath"]
+                add_log(f"{vid_prefix} [OK] Vídeo pronto: {Path(video_path).name}")
+
+                # 2. Transcrição
+                job_state["stage"] = "transcribe"
+                job_state["progress"] = base_prog + int(video_slice * 0.35)
+                add_log(f"{vid_prefix} Passo 2/5: Transcrevendo áudio com Faster-Whisper...")
+                transcript = transcribe_video(video_path, model_size="base")
+                all_words = []
+                for seg in transcript.get("segments", []):
+                    all_words.extend(seg.get("words", []))
+                detected_lang = transcript.get("language", "pt")
+                add_log(f"{vid_prefix} [OK] Transcrição concluída ({len(all_words)} palavras, idioma: {detected_lang}).")
+
+                # 3. Detecção de Destaques Virais (mínimo de 10 segundos)
+                job_state["stage"] = "detect"
+                job_state["progress"] = base_prog + int(video_slice * 0.55)
+                add_log(f"{vid_prefix} Passo 3/5: Identificando momentos virais com IA (mínimo 10s)...")
+                clips = detect_highlights(transcript, max_clips=req.max_clips)
+                
+                # Garantir regra de mínimo de 10 segundos
+                valid_clips = []
+                for c in clips:
+                    dur = c.get("end", 0) - c.get("start", 0)
+                    if dur >= 10.0:
+                        valid_clips.append(c)
+                    elif dur > 0:
+                        c["end"] = c["start"] + 15.0
+                        valid_clips.append(c)
+                clips = valid_clips if valid_clips else clips
+                add_log(f"{vid_prefix} [OK] {len(clips)} momentos virais identificados pela IA!")
+
+                # 4. Processamento, Dublagem e Renderização 9:16
+                job_state["stage"] = "render"
+                step_progress = (video_slice * 0.40) / max(len(clips), 1)
+                should_translate = req.translate_subtitles or req.enable_dubbing or (detected_lang != "pt")
+
+                video_new_clips = []
+                for idx, clip in enumerate(clips, 1):
+                    clean_title = "".join(c for c in clip.get("title", f"corte_{idx}") if c.isalnum() or c in (' ', '_', '-')).strip()
+                    tag_v = f"v{vid_idx}_" if total_videos > 1 else ""
+                    out_filename = f"{int(time.time())}_{tag_v}{idx:02d}_{clean_title[:20]}.mp4"
+                    out_path = str(OUTPUT_SHORTS_DIR / out_filename)
+
+                    if should_translate and detected_lang != "pt":
+                        add_log(f"{vid_prefix} Traduzindo legendas do corte #{idx} para Português...")
+                        clip_words = translate_segments_to_pt(transcript.get("segments", []), clip["start"], clip["end"])
+                    else:
+                        clip_words = [w for w in all_words if clip["start"] <= w["start"] <= clip["end"]]
+
+                    dubbed_audio_path = None
+                    if req.enable_dubbing:
+                        job_state["stage"] = "dub"
+                        add_log(f"{vid_prefix} Passo 4/5: Dublando corte #{idx} para Português...")
+                        clip_text = " ".join([w["word"] for w in clip_words])
+                        if clip_text:
+                            dubbed_audio_path = str(OUTPUT_DUBBED_DIR / f"dub_{tag_v}{idx}.mp3")
+                            temp_orig_audio = str(OUTPUT_DUBBED_DIR / f"orig_{tag_v}{idx}.mp3")
+                            os.system(f"ffmpeg -y -ss {clip['start']} -t {clip['end']-clip['start']} -i \"{video_path}\" -vn -ar 44100 -ac 2 \"{temp_orig_audio}\" >nul 2>&1")
+                            dub_clip(temp_orig_audio, clip_text, dubbed_audio_path, voice=req.voice)
+                            if os.path.exists(temp_orig_audio):
+                                os.remove(temp_orig_audio)
+
+                    job_state["stage"] = "render"
+                    add_log(f"{vid_prefix} Passo 5/5: Renderizando corte #{idx} em 9:16 vertical com gancho e karaokê...")
+                    c_title = clip.get("title", "ESSE DETALHE NO GTA 6 NINGUÉM VIU! 😱")
+                    render_vertical_short(
+                        source_video_path=video_path,
+                        start_sec=clip["start"],
+                        end_sec=clip["end"],
+                        output_path=out_path,
+                        subtitles_words=clip_words,
+                        dubbed_audio_path=dubbed_audio_path,
+                        hook_title=c_title,
+                        brand_tag="@castro93c"
+                    )
+
+                    clip_text = " ".join([w["word"] for w in clip_words]) if clip_words else clip.get("title", "")
+                    suggested = clip.get("suggested_titles") or [
+                        clip.get("title", "ESSE DETALHE NO GTA 6 NINGUÉM VIU! 😱"),
+                        "A FÍSICA DO GTA 6 VAI SER INSANA! 🔥",
+                        "O SEGREDO DA ROCKSTAR NO GTA VI! 🎮"
+                    ]
+                    caption_ig = generate_specific_caption(clip_text, clip.get("title", suggested[0]), platform="instagram")
+                    caption_yt = generate_specific_caption(clip_text, clip.get("title", suggested[0]), platform="youtube")
+
+                    meta_path = Path(out_path).with_name(out_filename + ".json")
+                    try:
+                        with open(meta_path, "w", encoding="utf-8") as mf:
+                            json.dump({
+                                "title": clip.get("title", suggested[0]),
+                                "suggested_titles": suggested,
+                                "hook": clip.get("hook", ""),
+                                "clip_text": clip_text,
+                                "caption": caption_ig,
+                                "caption_instagram": caption_ig,
+                                "caption_youtube": caption_yt
+                            }, mf, ensure_ascii=False, indent=2)
+                    except Exception as e:
+                        print(f"[!] Erro ao salvar metadados: {e}")
+
+                    clip_info = {
+                        "filename": out_filename,
                         "title": clip.get("title", suggested[0]),
                         "suggested_titles": suggested,
-                        "hook": clip.get("hook", ""),
-                        "clip_text": clip_text,
                         "caption": caption_ig,
                         "caption_instagram": caption_ig,
-                        "caption_youtube": caption_yt
-                    }, mf, ensure_ascii=False, indent=2)
-            except Exception as e:
-                print(f"[!] Erro ao salvar metadados: {e}")
+                        "caption_youtube": caption_yt,
+                        "hook": clip.get("hook", ""),
+                        "duration": round(clip["end"] - clip["start"], 1),
+                        "url": f"/videos/{out_filename}"
+                    }
+                    job_state["current_clips"].append(clip_info)
+                    video_new_clips.append(clip_info)
+                    all_generated_clips.append(clip_info)
+                    job_state["progress"] = min(92, base_prog + int(video_slice * (0.55 + 0.45 * (idx / max(len(clips), 1)))))
 
-            clip_info = {
-                "filename": out_filename,
-                "title": clip.get("title", suggested[0]),
-                "suggested_titles": suggested,
-                "caption": caption_ig,
-                "caption_instagram": caption_ig,
-                "caption_youtube": caption_yt,
-                "hook": clip.get("hook", ""),
-                "duration": round(clip["end"] - clip["start"], 1),
-                "url": f"/videos/{out_filename}"
-            }
-            job_state["current_clips"].append(clip_info)
-            job_state["progress"] = min(90, int(55 + (idx * step_progress)))
+                # Uploads automáticos para os cortes gerados deste vídeo
+                if req.auto_youtube and video_new_clips:
+                    add_log(f"{vid_prefix} Postando {len(video_new_clips)} corte(s) no YouTube Shorts...")
+                    from src.uploader_youtube import upload_short_to_youtube
+                    for c in video_new_clips:
+                        try:
+                            upload_short_to_youtube(str(OUTPUT_SHORTS_DIR / c["filename"]), title=c["title"], description=c["hook"], privacy_status="public")
+                            add_log(f"[YouTube] Publicado: {c['title']}")
+                        except Exception as e:
+                            add_log(f"[YouTube Erro] {e}")
 
-        # 5. Uploads automáticos opcionais
-        if req.auto_youtube:
-            job_state["stage"] = "upload_yt"
-            add_log("Enviando clipes automaticamente para o YouTube Shorts...")
-            from src.uploader_youtube import upload_short_to_youtube
-            for c in job_state["current_clips"]:
-                try:
-                    upload_short_to_youtube(str(OUTPUT_SHORTS_DIR / c["filename"]), title=c["title"], description=c["hook"], privacy_status="public")
-                    add_log(f"[YouTube] Publicado como Público: {c['title']}")
-                except Exception as e:
-                    add_log(f"[YouTube Erro] {e}")
+                if req.auto_instagram and video_new_clips:
+                    add_log(f"{vid_prefix} Postando {len(video_new_clips)} corte(s) no Instagram Reels...")
+                    from src.uploader_instagram import upload_reel_to_instagram
+                    for c in video_new_clips:
+                        try:
+                            upload_reel_to_instagram(str(OUTPUT_SHORTS_DIR / c["filename"]), caption=f"{c['title']}\n{c['hook']}")
+                            add_log(f"[Instagram] Publicado: {c['title']}")
+                        except Exception as e:
+                            add_log(f"[Instagram Erro] {e}")
 
-        if req.auto_instagram:
-            job_state["stage"] = "upload_ig"
-            add_log("Enviando clipes automaticamente para o Instagram Reels...")
-            from src.uploader_instagram import upload_reel_to_instagram
-            for c in job_state["current_clips"]:
-                try:
-                    upload_reel_to_instagram(str(OUTPUT_SHORTS_DIR / c["filename"]), caption=f"{c['title']}\n{c['hook']}")
-                    add_log(f"[Instagram] Publicado: {c['title']}")
-                except Exception as e:
-                    add_log(f"[Instagram Erro] {e}")
+                if req.auto_tiktok and video_new_clips:
+                    add_log(f"{vid_prefix} Postando {len(video_new_clips)} corte(s) no TikTok...")
+                    from src.uploader_tiktok import upload_video_to_tiktok
+                    for c in video_new_clips:
+                        try:
+                            tt_res = upload_video_to_tiktok(str(OUTPUT_SHORTS_DIR / c["filename"]), caption=f"{c['title']} #gta6 #games #shorts")
+                            if tt_res.get("status") == "success":
+                                add_log(f"[TikTok] Publicado: {c['title']}")
+                            else:
+                                add_log(f"[TikTok] {tt_res.get('message', 'Erro no envio')}")
+                        except Exception as e:
+                            add_log(f"[TikTok Erro] {e}")
+
+            except Exception as vid_err:
+                add_log(f"[!] Erro no vídeo {vid_idx} ({current_source}): {vid_err}")
+                print(f"[!] Erro no vídeo {vid_idx}: {vid_err}")
+                continue
 
         job_state["status"] = "completed"
         job_state["progress"] = 100
-        add_log(f"✨ Concluído com sucesso! {len(job_state['current_clips'])} cortes gerados e prontos na Galeria.")
+        total_cuts = len(job_state["current_clips"])
+        add_log(f"✨ Concluído com sucesso! Fila de {total_videos} vídeo(s) finalizada. Total de {total_cuts} cortes gerados e disponíveis na Galeria!")
 
     except Exception as e:
         job_state["status"] = "error"
@@ -502,6 +574,44 @@ def run_live_clip_worker(req_data: dict):
         job_state["status"] = "error"
         add_log(f"[!] Erro ao processar clipe da live: {str(e)}")
 
+def run_live_batch_worker(clips_req: List[LiveClipProcessRequest]):
+    global job_state
+    try:
+        job_state["status"] = "running"
+        job_state["progress"] = 5
+        job_state["logs"] = []
+        job_state["current_clips"] = []
+        job_state["stage"] = "live_clipping"
+        total = len(clips_req)
+        add_log(f"📡 Radar de Lives: Iniciando corte em lote de {total} clipe(s) selecionado(s)!")
+        
+        from src.live_clipper import process_live_clip_to_short
+        for idx, item in enumerate(clips_req, 1):
+            add_log(f"[{idx}/{total}] Baixando e renderizando 9:16: '{item.streamer or 'Streamer'}' - {item.title or 'Clipe'}...")
+            try:
+                res = process_live_clip_to_short(
+                    clip_url=item.clip_url,
+                    title=item.title,
+                    streamer=item.streamer,
+                    views=item.views or 0,
+                    hook_title=item.hook_title,
+                    auto_upload=item.auto_upload or False,
+                    platforms=item.platforms or ["youtube", "instagram", "tiktok"]
+                )
+                job_state["current_clips"].append(res["filename"])
+                add_log(f"[{idx}/{total}] [OK] Corte gerado: {res['filename']} (Duração: {res['duration']:.1f}s)")
+            except Exception as c_err:
+                add_log(f"[{idx}/{total}] [!] Erro no clipe: {c_err}")
+            
+            job_state["progress"] = int((idx / total) * 95)
+            
+        job_state["progress"] = 100
+        job_state["status"] = "completed"
+        add_log(f"✨ Processamento em lote de lives finalizado! {len(job_state['current_clips'])} cortes salvos na Galeria.")
+    except Exception as e:
+        job_state["status"] = "error"
+        add_log(f"[!] Erro no lote de lives: {str(e)}")
+
 def run_live_snipe_worker(streamer: Optional[str], game: str, auto_upload: bool):
     global job_state
     try:
@@ -552,6 +662,14 @@ def process_live_clip(background_tasks: BackgroundTasks, req: LiveClipProcessReq
         raise HTTPException(status_code=400, detail="Já existe um processamento em andamento.")
     background_tasks.add_task(run_live_clip_worker, req.dict())
     return {"status": "started", "message": "Processamento do clipe de live iniciado!"}
+
+@app.post("/api/live/process_batch")
+def process_live_batch(background_tasks: BackgroundTasks, req: LiveBatchProcessRequest):
+    global job_state
+    if job_state["status"] == "running":
+        raise HTTPException(status_code=400, detail="Já existe um processamento em andamento.")
+    background_tasks.add_task(run_live_batch_worker, req.clips)
+    return {"status": "started", "message": f"Fila de {len(req.clips)} clipes de live iniciada!"}
 
 @app.post("/api/live/snipe_best")
 def trigger_live_snipe(background_tasks: BackgroundTasks, req: Optional[LiveSniperRequest] = None):

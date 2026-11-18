@@ -125,19 +125,32 @@
         
         <!-- ================= PASSO 1 ================= -->
         <div class="space-y-3">
-          <div class="flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-sm shadow">
-              1
-            </span>
-            <div>
-              <h2 class="text-base font-bold text-white uppercase tracking-wider">
-                PASSO 1: Fonte do Vídeo (YouTube, TikTok ou Arquivo Local)
-              </h2>
-              <p class="text-xs text-slate-400">Cole a URL do vídeo de GTA 6 ou o caminho completo de um arquivo .mp4 no seu PC</p>
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+              <span class="w-8 h-8 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-sm shadow">
+                1
+              </span>
+              <div>
+                <h2 class="text-base font-bold text-white uppercase tracking-wider">
+                  PASSO 1: Fonte dos Vídeos (Único ou Múltiplos em Lote)
+                </h2>
+                <p class="text-xs text-slate-400">Analise 1 vídeo avulso ou coloque múltiplos links/arquivos para cortar tudo em fila</p>
+              </div>
+            </div>
+
+            <!-- Mode Selector Pills -->
+            <div class="flex items-center gap-1 bg-darkBg p-1 rounded-xl border border-darkBorder">
+              <button type="button" id="btn-mode-single" onclick="setBatchMode(false)" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow transition">
+                🔗 Vídeo Único
+              </button>
+              <button type="button" id="btn-mode-batch" onclick="setBatchMode(true)" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition">
+                📚 Fila de Vídeos (Lote)
+              </button>
             </div>
           </div>
 
-          <div class="relative pl-11">
+          <!-- Single Mode Input -->
+          <div id="container-single-input" class="relative pl-11">
             <input 
               type="text" 
               id="input-source" 
@@ -145,6 +158,34 @@
               class="w-full bg-darkBg border border-darkBorder rounded-xl px-4 py-3.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all pr-12 text-sm"
             >
             <span class="absolute right-4 top-3.5 text-slate-500 text-lg">🔗</span>
+            <p class="text-[11px] text-slate-500 mt-1 pl-1">💡 Dica: Se colar 2 ou mais links separados por vírgula ou espaço aqui, o robô corta todos automaticamente!</p>
+          </div>
+
+          <!-- Batch Mode Input (Textarea + Counter + File Picker) -->
+          <div id="container-batch-input" class="space-y-2.5 pl-11 hidden">
+            <div class="relative">
+              <textarea 
+                id="input-batch-sources" 
+                rows="4" 
+                placeholder="Cole múltiplos links ou caminhos de arquivos .mp4 (1 por linha):&#10;https://www.youtube.com/watch?v=video1&#10;https://www.youtube.com/watch?v=video2&#10;https://www.twitch.tv/videos/12345&#10;C:\Users\fabia\Desktop\gta_gameplay.mp4" 
+                oninput="updateBatchCounter()"
+                class="w-full bg-darkBg border border-darkBorder rounded-xl p-3.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all text-xs font-mono leading-relaxed"
+              ></textarea>
+            </div>
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <span id="batch-counter-badge" class="text-xs text-brand-400 font-semibold bg-brand-500/10 border border-brand-500/30 px-3 py-1 rounded-lg">
+                  📋 0 vídeos na fila
+                </span>
+                <span class="text-[11px] text-slate-500">Cada vídeo será baixado, transcrito e cortado nos melhores momentos (&ge; 10s)</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="file" id="batch-file-picker" multiple accept="video/mp4,video/mkv,video/mov,video/webm" class="hidden" onchange="handleBatchFileSelect(event)">
+                <button type="button" onclick="document.getElementById('batch-file-picker').click()" class="px-3.5 py-1.5 bg-darkBg hover:bg-slate-800 border border-darkBorder text-slate-200 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 shadow">
+                  <span>📂</span> Carregar Vídeos do PC (.mp4)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -248,6 +289,10 @@
             <label class="flex items-center gap-2.5 cursor-pointer hover:text-white transition bg-darkBg px-4 py-2.5 rounded-xl border border-darkBorder">
               <input type="checkbox" id="check-auto-ig" class="w-4 h-4 rounded bg-darkCard border-darkBorder text-brand-600 focus:ring-0">
               <span class="flex items-center gap-1.5 font-medium">📸 Publicar no Instagram Reels</span>
+            </label>
+            <label class="flex items-center gap-2.5 cursor-pointer hover:text-white transition bg-darkBg px-4 py-2.5 rounded-xl border border-darkBorder">
+              <input type="checkbox" id="check-auto-tt" class="w-4 h-4 rounded bg-darkCard border-darkBorder text-brand-600 focus:ring-0">
+              <span class="flex items-center gap-1.5 font-medium">⚫ Publicar no TikTok</span>
             </label>
             <span class="text-xs text-slate-500 italic">(Dica: Se deixar desmarcado, os vídeos ficam salvos na Galeria para você postar quando quiser)</span>
           </div>
@@ -457,6 +502,33 @@
           </button>
           <button onclick="quickSearchLive('')" class="px-3 py-1.5 bg-darkBg hover:bg-slate-800 text-purple-300 hover:text-purple-200 rounded-lg border border-purple-500/30 transition">
             🌍 Top Clipes Geral
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Ação em Lote do Radar (Aparece ao marcar clipes) -->
+      <div id="live-batch-bar" class="bg-gradient-to-r from-purple-900/60 via-slate-900/80 to-brand-900/60 border border-purple-500/40 rounded-2xl p-4 shadow-xl flex items-center justify-between flex-wrap gap-3 hidden">
+        <div class="flex items-center gap-3">
+          <span class="w-8 h-8 rounded-lg bg-purple-600 text-white font-bold flex items-center justify-center text-sm shadow">
+            ⚡
+          </span>
+          <div>
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>Fila em Lote de Lives:</span>
+              <span id="live-batch-count" class="px-2.5 py-0.5 rounded-full bg-purple-500 text-white text-xs font-extrabold">0 selecionados</span>
+            </h4>
+            <p class="text-xs text-slate-300">Corte todos os clipes marcados em sequência com 1 clique</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" onclick="toggleSelectAllLiveClips()" id="btn-select-all-live" class="px-3 py-1.5 bg-darkBg hover:bg-slate-800 border border-darkBorder text-slate-300 rounded-lg text-xs font-semibold transition">
+            ☑️ Selecionar Todos
+          </button>
+          <button type="button" onclick="processSelectedLiveBatch(false)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1">
+            <span>🎬</span> Apenas Gerar Cortes 9:16
+          </button>
+          <button type="button" onclick="processSelectedLiveBatch(true)" class="px-4 py-1.5 bg-gradient-to-r from-purple-600 via-pink-600 to-brand-600 hover:brightness-110 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
+            <span>🚀</span> Cortar e Postar Todos em Lote (Combo)
           </button>
         </div>
       </div>
@@ -907,6 +979,136 @@
       loadLiveClips(q, currentLivePlatform);
     }
 
+    let isBatchMode = false;
+
+    function setBatchMode(enabled) {
+      isBatchMode = enabled;
+      const btnSingle = document.getElementById('btn-mode-single');
+      const btnBatch = document.getElementById('btn-mode-batch');
+      const cSingle = document.getElementById('container-single-input');
+      const cBatch = document.getElementById('container-batch-input');
+      
+      if (enabled) {
+        btnBatch.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow transition';
+        btnSingle.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition';
+        cSingle.classList.add('hidden');
+        cBatch.classList.remove('hidden');
+        const singleVal = document.getElementById('input-source').value.trim();
+        const batchVal = document.getElementById('input-batch-sources').value.trim();
+        if (singleVal && !batchVal) {
+          document.getElementById('input-batch-sources').value = singleVal;
+        }
+        updateBatchCounter();
+      } else {
+        btnSingle.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow transition';
+        btnBatch.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition';
+        cBatch.classList.add('hidden');
+        cSingle.classList.remove('hidden');
+      }
+    }
+
+    function updateBatchCounter() {
+      const text = document.getElementById('input-batch-sources').value;
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const badge = document.getElementById('batch-counter-badge');
+      if (badge) {
+        badge.innerText = `📋 ${lines.length} vídeo(s) na fila`;
+      }
+    }
+
+    function handleBatchFileSelect(e) {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+      const textarea = document.getElementById('input-batch-sources');
+      const current = textarea.value.trim();
+      const filePaths = [];
+      for (let i = 0; i < files.length; i++) {
+        const p = files[i].path || files[i].name;
+        filePaths.push(p);
+      }
+      const added = filePaths.join('\n');
+      textarea.value = current ? (current + '\n' + added) : added;
+      updateBatchCounter();
+    }
+
+    let selectedLiveClips = [];
+
+    function updateLiveBatchSelection() {
+      const checkboxes = document.querySelectorAll('.live-clip-checkbox:checked');
+      selectedLiveClips = [];
+      checkboxes.forEach(cb => {
+        try {
+          const item = JSON.parse(decodeURIComponent(cb.getAttribute('data-clip')));
+          selectedLiveClips.push(item);
+        } catch (e) {
+          console.error('Erro ao ler clipe:', e);
+        }
+      });
+
+      const bar = document.getElementById('live-batch-bar');
+      const countEl = document.getElementById('live-batch-count');
+      if (selectedLiveClips.length > 0) {
+        bar.classList.remove('hidden');
+        countEl.innerText = `${selectedLiveClips.length} selecionado(s)`;
+      } else {
+        bar.classList.add('hidden');
+      }
+    }
+
+    function toggleSelectAllLiveClips() {
+      const checkboxes = document.querySelectorAll('.live-clip-checkbox');
+      const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
+      checkboxes.forEach(cb => cb.checked = !allChecked);
+      const btn = document.getElementById('btn-select-all-live');
+      if (btn) {
+        btn.innerText = !allChecked ? '✖️ Desmarcar Todos' : '☑️ Selecionar Todos';
+      }
+      updateLiveBatchSelection();
+    }
+
+    async function processSelectedLiveBatch(autoUpload) {
+      if (!selectedLiveClips || selectedLiveClips.length === 0) {
+        alert('Selecione pelo menos 1 clipe na lista abaixo marcando a caixinha [Fila]!');
+        return;
+      }
+
+      const total = selectedLiveClips.length;
+      const msg = autoUpload
+        ? `Deseja processar os ${total} clipes selecionados em LOTE?\nEles serão editados em 9:16 vertical e publicados automaticamente no YouTube Shorts, Instagram Reels e TikTok!`
+        : `Deseja processar os ${total} clipes selecionados em LOTE?\nEles serão editados em 9:16 vertical e salvos na sua Galeria.`;
+
+      if (!confirm(msg)) return;
+
+      switchTab('create');
+      document.getElementById('progress-card').classList.remove('hidden');
+
+      const payloadClips = selectedLiveClips.map(c => ({
+        clip_url: c.url,
+        title: c.title,
+        streamer: c.streamer,
+        views: c.view_count || 0,
+        hook_title: c.title,
+        auto_upload: autoUpload,
+        platforms: ['youtube', 'instagram', 'tiktok']
+      }));
+
+      try {
+        const res = await fetch(API_BASE + '/api/live/process_batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clips: payloadClips })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert('Erro: ' + (data.detail || 'Não foi possível iniciar o lote.'));
+          return;
+        }
+        startPolling();
+      } catch (err) {
+        alert('Erro ao conectar: ' + err);
+      }
+    }
+
     async function loadLiveClips(query = '', platform = currentLivePlatform) {
       const grid = document.getElementById('live-clips-grid');
       const loader = document.getElementById('live-clips-loading');
@@ -915,6 +1117,9 @@
       grid.innerHTML = '';
       loader.classList.remove('hidden');
       empty.classList.add('hidden');
+      const bar = document.getElementById('live-batch-bar');
+      if (bar) bar.classList.add('hidden');
+      selectedLiveClips = [];
 
       try {
         const url = API_BASE + '/api/live/clips?query=' + encodeURIComponent(query) + '&min_duration=10.0&limit=15&platform=' + encodeURIComponent(platform);
@@ -927,8 +1132,17 @@
           return;
         }
 
-        grid.innerHTML = data.clips.map(c => `
-          <div class="bg-darkCard rounded-2xl border border-darkBorder overflow-hidden shadow-xl flex flex-col justify-between hover:border-purple-500/50 transition duration-200">
+        grid.innerHTML = data.clips.map(c => {
+          const clipJson = encodeURIComponent(JSON.stringify({
+            url: c.url,
+            title: c.title,
+            streamer: c.streamer,
+            view_count: c.view_count,
+            duration: c.duration,
+            platform: c.platform
+          }));
+          return `
+          <div class="bg-darkCard rounded-2xl border border-darkBorder overflow-hidden shadow-xl flex flex-col justify-between hover:border-purple-500/50 transition duration-200 relative group">
             <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden">
               <img src="${c.thumbnail}" alt="${escapeHtml(c.title)}" class="w-full h-full object-cover">
               <span class="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold bg-black/80 text-white backdrop-blur flex items-center gap-1">
@@ -940,6 +1154,14 @@
               <span class="absolute top-2 left-2 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${c.platform === 'youtube' ? 'bg-red-600/90 text-white' : 'bg-purple-600/90 text-white'} backdrop-blur flex items-center gap-1 shadow">
                 ${c.platform === 'youtube' ? '🔴 YouTube' : '🟣 Twitch'} &bull; ${escapeHtml(c.streamer)}
               </span>
+
+              <!-- Seleção em Lote -->
+              <div class="absolute top-2 right-2 z-10">
+                <label class="flex items-center gap-1.5 bg-black/80 hover:bg-black px-2.5 py-1 rounded-lg border border-white/20 cursor-pointer shadow backdrop-blur transition" onclick="event.stopPropagation()">
+                  <input type="checkbox" class="live-clip-checkbox w-3.5 h-3.5 rounded text-purple-600 focus:ring-0 cursor-pointer" data-clip="${clipJson}" onchange="updateLiveBatchSelection()">
+                  <span class="text-[10px] text-white font-bold">Fila</span>
+                </label>
+              </div>
             </div>
 
             <div class="p-4 space-y-3 flex-1 flex flex-col justify-between">
@@ -962,7 +1184,7 @@
               </div>
             </div>
           </div>
-        `).join('');
+        `}).join('');
 
       } catch (err) {
         loader.classList.add('hidden');
@@ -1033,25 +1255,59 @@
     }
 
     async function startProcessing() {
-      const source = document.getElementById('input-source').value.trim();
-      if (!source) {
-        alert('Por favor, insira uma URL do YouTube ou o caminho de um arquivo local (.mp4)!');
+      let sources = [];
+      if (isBatchMode) {
+        const text = document.getElementById('input-batch-sources').value;
+        sources = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      } else {
+        const single = document.getElementById('input-source').value.trim();
+        if (single) {
+          sources = single.replace(/;/g, '\n').replace(/,/g, '\n').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        }
+      }
+
+      if (!sources || sources.length === 0) {
+        alert('Por favor, insira pelo menos 1 URL do YouTube/Twitch ou caminho de arquivo (.mp4)!');
         return;
       }
 
+      const checkAutoTt = document.getElementById('check-auto-tt');
       const payload = {
-        source: source,
+        source: sources[0],
+        sources: sources,
         enable_dubbing: document.getElementById('check-dubbing').checked,
         translate_subtitles: document.getElementById('check-translate-subs').checked,
         voice: document.getElementById('select-voice').value,
         max_clips: parseInt(document.getElementById('select-max-clips').value),
         subtitle_style: document.getElementById('select-sub-style').value,
         auto_youtube: document.getElementById('check-auto-yt').checked,
-        auto_instagram: document.getElementById('check-auto-ig').checked
+        auto_instagram: document.getElementById('check-auto-ig').checked,
+        auto_tiktok: checkAutoTt ? checkAutoTt.checked : false
       };
 
       document.getElementById('btn-start').disabled = true;
       document.getElementById('progress-card').classList.remove('hidden');
+
+      try {
+        const res = await fetch(API_BASE + '/api/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+          alert('Erro: ' + (data.detail || 'Não foi possível iniciar.'));
+          document.getElementById('btn-start').disabled = false;
+          return;
+        }
+
+        startPolling();
+      } catch (err) {
+        alert('Erro ao conectar com o servidor: ' + err);
+        document.getElementById('btn-start').disabled = false;
+      }
+    }
 
       try {
         const res = await fetch(API_BASE + '/api/process', {
